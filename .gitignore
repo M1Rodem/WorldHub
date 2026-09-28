@@ -1,0 +1,45 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Build
+[Bb]in/
+[Oo]bj/
+
+# Test results
+TestResults/
+*.trx
+
+# Coverage
+coverage/
+.coverage
+
+# Rider / ReSharper
+.idea/
+_ReSharper*/
+*.[Rr]e[Ss]harper.user
+*.DotSettings.user
+
+# NuGet
+packages/
+*.nupkg
+*.snupkg
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# WorldHub local data
+/worldhub-data/
+/backups/
+/snapshots/
+
+# Minecraft
+.minecraft/
