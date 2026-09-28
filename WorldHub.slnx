@@ -1,1 +1,7 @@
-<Solution />
+<Solution>
+  <Project Path="WorldHub.App/WorldHub.App.csproj" />
+  <Project Path="WorldHub.Core/WorldHub.Core.csproj" />
+  <Project Path="WorldHub.Infrastructure/WorldHub.Infrastructure.csproj" />
+  <Project Path="WorldHub.Network/WorldHub.Network.csproj" />
+  <Project Path="WorldHub.Sync/WorldHub.Sync.csproj" />
+</Solution>

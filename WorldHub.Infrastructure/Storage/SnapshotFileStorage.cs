@@ -1,0 +1,203 @@
+﻿using WorldHub.Core.Entities;
+using WorldHub.Sync.Interfaces;
+
+namespace WorldHub.Infrastructure.Storage;
+
+public sealed class SnapshotFileStorage : ISnapshotStorage
+{
+    private readonly string _snapshotsRootPath;
+
+    public SnapshotFileStorage(string snapshotsRootPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(snapshotsRootPath);
+
+        _snapshotsRootPath = snapshotsRootPath;
+        Directory.CreateDirectory(_snapshotsRootPath);
+    }
+
+    public async Task<string> CreateAsync(
+        World world,
+        Snapshot snapshot,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        if (!Directory.Exists(world.LocalPath))
+        {
+            throw new DirectoryNotFoundException(
+                $"Minecraft world directory was not found: {world.LocalPath}");
+        }
+
+        var worldDirectory = Path.GetFullPath(world.LocalPath);
+        var snapshotDirectory = Path.Combine(
+            _snapshotsRootPath,
+            world.Id.ToString(),
+            snapshot.Id.ToString());
+
+        if (Directory.Exists(snapshotDirectory))
+        {
+            throw new IOException(
+                $"Snapshot directory already exists: {snapshotDirectory}");
+        }
+
+        Directory.CreateDirectory(snapshotDirectory);
+
+        try
+        {
+            await CopyDirectoryAsync(
+                worldDirectory,
+                snapshotDirectory,
+                cancellationToken);
+
+            return snapshotDirectory;
+        }
+        catch
+        {
+            if (Directory.Exists(snapshotDirectory))
+            {
+                Directory.Delete(snapshotDirectory, recursive: true);
+            }
+
+            throw;
+        }
+    }
+
+    public Task RestoreAsync(
+        Snapshot snapshot,
+        string targetPath,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentException.ThrowIfNullOrWhiteSpace(targetPath);
+
+        return RestoreInternalAsync(
+            snapshot,
+            targetPath,
+            cancellationToken);
+    }
+
+    public Task DeleteAsync(
+        Snapshot snapshot,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        if (!Directory.Exists(snapshot.StoragePath))
+        {
+            return Task.CompletedTask;
+        }
+
+        Directory.Delete(
+            snapshot.StoragePath,
+            recursive: true);
+
+        return Task.CompletedTask;
+    }
+
+    private static async Task RestoreInternalAsync(
+        Snapshot snapshot,
+        string targetPath,
+        CancellationToken cancellationToken)
+    {
+        if (!Directory.Exists(snapshot.StoragePath))
+        {
+            throw new DirectoryNotFoundException(
+                $"Snapshot directory was not found: {snapshot.StoragePath}");
+        }
+
+        if (Directory.Exists(targetPath))
+        {
+            Directory.Delete(
+                targetPath,
+                recursive: true);
+        }
+
+        Directory.CreateDirectory(targetPath);
+
+        await CopyDirectoryAsync(
+            snapshot.StoragePath,
+            targetPath,
+            cancellationToken);
+    }
+
+    private static async Task CopyDirectoryAsync(
+        string sourceDirectory,
+        string destinationDirectory,
+        CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(destinationDirectory);
+
+        foreach (var directory in Directory.EnumerateDirectories(
+                     sourceDirectory,
+                     "*",
+                     SearchOption.AllDirectories))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var relativePath = Path.GetRelativePath(
+                sourceDirectory,
+                directory);
+
+            var targetDirectory = Path.Combine(
+                destinationDirectory,
+                relativePath);
+
+            Directory.CreateDirectory(targetDirectory);
+        }
+
+        foreach (var file in Directory.EnumerateFiles(
+                     sourceDirectory,
+                     "*",
+                     SearchOption.AllDirectories))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var relativePath = Path.GetRelativePath(
+                sourceDirectory,
+                file);
+
+            var targetFile = Path.Combine(
+                destinationDirectory,
+                relativePath);
+
+            var targetDirectory = Path.GetDirectoryName(targetFile);
+
+            if (!string.IsNullOrEmpty(targetDirectory))
+            {
+                Directory.CreateDirectory(targetDirectory);
+            }
+
+            await CopyFileAsync(
+                file,
+                targetFile,
+                cancellationToken);
+        }
+    }
+
+    private static async Task CopyFileAsync(
+        string sourceFile,
+        string destinationFile,
+        CancellationToken cancellationToken)
+    {
+        await using var source = new FileStream(
+            sourceFile,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 1024 * 64,
+            useAsync: true);
+
+        await using var destination = new FileStream(
+            destinationFile,
+            FileMode.CreateNew,
+            FileAccess.Write,
+            FileShare.None,
+            bufferSize: 1024 * 64,
+            useAsync: true);
+
+        await source.CopyToAsync(
+            destination,
+            cancellationToken);
+    }
+}
