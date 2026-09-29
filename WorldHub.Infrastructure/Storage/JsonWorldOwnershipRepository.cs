@@ -161,6 +161,22 @@ public sealed class JsonWorldOwnershipRepository
             .ToArray();
     }
 
+    public Task DeleteByWorldIdAsync(
+        Guid worldId,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var directory = GetWorldDirectory(worldId);
+
+        if (Directory.Exists(directory))
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+
+        return Task.CompletedTask;
+    }
+
     private string GetWorldDirectory(Guid worldId)
     {
         return Path.Combine(

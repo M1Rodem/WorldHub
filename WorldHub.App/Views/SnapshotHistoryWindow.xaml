@@ -106,15 +106,23 @@
                                 </StackPanel>
 
                                 <!-- Restore -->
-                                <Button Grid.Row="0"
-                                        Grid.RowSpan="4"
-                                        Grid.Column="1"
-                                        Width="130"
-                                        Height="38"
-                                        Margin="20,0,0,0"
-                                        VerticalAlignment="Center"
-                                        Content="Восстановить"
-                                        IsEnabled="False"/>
+								<Button Grid.Row="0"
+                                    Grid.RowSpan="4"
+                                    Grid.Column="1"
+                                    Width="130"
+                                    Height="38"
+                                    Margin="20,0,0,0"
+                                    VerticalAlignment="Center"
+                                    HorizontalAlignment="Center"
+                                    Panel.ZIndex="100"
+                                    IsHitTestVisible="True"
+                                    IsEnabled="True"
+                                    Background="#2563EB"
+                                    Foreground="White"
+                                    BorderBrush="#3B82F6"
+                                    BorderThickness="1"
+                                    Content="Восстановить"
+                                    Click="RestoreButton_Click"/>
 
                             </Grid>
 

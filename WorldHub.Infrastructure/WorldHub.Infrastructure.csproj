@@ -7,12 +7,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\WorldHub.Core\WorldHub.Core.csproj" />
-    <ProjectReference Include="..\WorldHub.Sync\WorldHub.Sync.csproj" />
+    <Compile Remove="Configuration\**" />
+    <EmbeddedResource Remove="Configuration\**" />
+    <None Remove="Configuration\**" />
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Configuration\" />
+    <ProjectReference Include="..\WorldHub.Core\WorldHub.Core.csproj" />
+    <ProjectReference Include="..\WorldHub.Sync\WorldHub.Sync.csproj" />
   </ItemGroup>
 
 </Project>

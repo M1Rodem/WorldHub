@@ -37,7 +37,40 @@ public partial class SnapshotHistoryWindow : Window
 
         await LoadHistoryAsync();
     }
+    private async void RestoreButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement element)
+        {
+            DebugConsole.Error(
+                "Restore button sender is invalid.");
 
+            return;
+        }
+
+        if (element.DataContext is not SnapshotViewModel snapshot)
+        {
+            DebugConsole.Error(
+                "Restore button has no SnapshotViewModel.");
+
+            return;
+        }
+
+        var restored =
+            await SnapshotRestoreHelper.RestoreAsync(
+                this,
+                _world,
+                snapshot,
+                _snapshotAppService);
+
+        if (!restored)
+        {
+            return;
+        }
+
+        await LoadHistoryAsync();
+    }
     private async Task LoadHistoryAsync()
     {
         try

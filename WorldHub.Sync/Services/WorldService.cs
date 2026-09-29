@@ -50,11 +50,29 @@ public sealed class WorldService
                 nameof(loader));
         }
 
+        var normalizedLocalPath = Path.GetFullPath(localPath);
+
+        var existingWorlds = await _worldRepository.GetAllAsync(
+            cancellationToken);
+
+        var existingWorld = existingWorlds.FirstOrDefault(
+            world => string.Equals(
+                Path.GetFullPath(world.LocalPath),
+                normalizedLocalPath,
+                StringComparison.OrdinalIgnoreCase));
+
+        if (existingWorld is not null)
+        {
+            throw new InvalidOperationException(
+                $"Этот Minecraft-мир уже зарегистрирован в WorldHub.\n\n" +
+                $"Путь:\n{normalizedLocalPath}");
+        }
+
         var world = new World
         {
             Id = Guid.NewGuid(),
             Name = name.Trim(),
-            LocalPath = Path.GetFullPath(localPath),
+            LocalPath = normalizedLocalPath,
             MinecraftVersion = minecraftVersion.Trim(),
             Loader = loader.Trim(),
             LoaderVersion = NormalizeOptionalValue(loaderVersion),
@@ -108,51 +126,6 @@ public sealed class WorldService
             world,
             cancellationToken);
     }
-
-    public async Task DeleteAsync(
-        Guid worldId,
-        CancellationToken cancellationToken = default)
-    {
-        if (worldId == Guid.Empty)
-        {
-            throw new ArgumentException(
-                "World ID cannot be empty.",
-                nameof(worldId));
-        }
-
-        var world = await _worldRepository.GetByIdAsync(
-            worldId,
-            cancellationToken);
-
-        if (world is null)
-        {
-            throw new InvalidOperationException(
-                $"World with ID '{worldId}' was not found.");
-        }
-
-        if (world.Status == WorldStatus.Playing)
-        {
-            throw new InvalidOperationException(
-                "A world cannot be deleted while it is being played.");
-        }
-
-        if (world.Status == WorldStatus.Syncing)
-        {
-            throw new InvalidOperationException(
-                "A world cannot be deleted while it is syncing.");
-        }
-
-        if (world.Status == WorldStatus.Restoring)
-        {
-            throw new InvalidOperationException(
-                "A world cannot be deleted while it is being restored.");
-        }
-
-        await _worldRepository.DeleteAsync(
-            worldId,
-            cancellationToken);
-    }
-
     public async Task SetStatusAsync(
         Guid worldId,
         WorldStatus status,

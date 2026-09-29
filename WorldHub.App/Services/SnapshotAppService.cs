@@ -32,6 +32,24 @@ public sealed class SnapshotAppService
         return new SnapshotViewModel(snapshot);
     }
 
+    public async Task<SnapshotViewModel?> CreateSnapshotIfChangedAsync(
+        World world,
+        Guid authorId,
+        string message,
+        CancellationToken cancellationToken = default)
+    {
+        var snapshot =
+            await _snapshotService.CreateIfChangedAsync(
+                world,
+                authorId,
+                message,
+                cancellationToken);
+
+        return snapshot is null
+            ? null
+            : new SnapshotViewModel(snapshot);
+    }
+
     public async Task<IReadOnlyCollection<SnapshotViewModel>> GetHistoryAsync(
         Guid worldId,
         CancellationToken cancellationToken = default)

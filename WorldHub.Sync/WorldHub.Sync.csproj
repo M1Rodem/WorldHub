@@ -7,12 +7,16 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\WorldHub.Core\WorldHub.Core.csproj" />
+    <Compile Remove="Exceptions\**" />
+    <Compile Remove="Models\**" />
+    <EmbeddedResource Remove="Exceptions\**" />
+    <EmbeddedResource Remove="Models\**" />
+    <None Remove="Exceptions\**" />
+    <None Remove="Models\**" />
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Models\" />
-    <Folder Include="Exceptions\" />
+    <ProjectReference Include="..\WorldHub.Core\WorldHub.Core.csproj" />
   </ItemGroup>
 
 </Project>

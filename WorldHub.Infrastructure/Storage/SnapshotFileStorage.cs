@@ -95,10 +95,30 @@ public sealed class SnapshotFileStorage : ISnapshotStorage
         return Task.CompletedTask;
     }
 
+    public Task DeleteByWorldIdAsync(
+        Guid worldId,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var worldDirectory = Path.Combine(
+            _snapshotsRootPath,
+            worldId.ToString());
+
+        if (Directory.Exists(worldDirectory))
+        {
+            Directory.Delete(
+                worldDirectory,
+                recursive: true);
+        }
+
+        return Task.CompletedTask;
+    }
+
     private static async Task RestoreInternalAsync(
-        Snapshot snapshot,
-        string targetPath,
-        CancellationToken cancellationToken)
+    Snapshot snapshot,
+    string targetPath,
+    CancellationToken cancellationToken)
     {
         if (!Directory.Exists(snapshot.StoragePath))
         {
@@ -106,19 +126,72 @@ public sealed class SnapshotFileStorage : ISnapshotStorage
                 $"Snapshot directory was not found: {snapshot.StoragePath}");
         }
 
-        if (Directory.Exists(targetPath))
+        var fullTargetPath =
+            Path.GetFullPath(targetPath);
+
+        var backupPath =
+            $"{fullTargetPath}.worldhub-restore-backup";
+
+        if (Directory.Exists(backupPath))
         {
             Directory.Delete(
-                targetPath,
+                backupPath,
                 recursive: true);
         }
 
-        Directory.CreateDirectory(targetPath);
+        var backupCreated = false;
 
-        await CopyDirectoryAsync(
-            snapshot.StoragePath,
-            targetPath,
-            cancellationToken);
+        try
+        {
+            if (Directory.Exists(fullTargetPath))
+            {
+                await CopyDirectoryAsync(
+                    fullTargetPath,
+                    backupPath,
+                    cancellationToken);
+
+                backupCreated = true;
+
+                Directory.Delete(
+                    fullTargetPath,
+                    recursive: true);
+            }
+
+            Directory.CreateDirectory(
+                fullTargetPath);
+
+            await CopyDirectoryAsync(
+                snapshot.StoragePath,
+                fullTargetPath,
+                cancellationToken);
+
+            if (backupCreated &&
+                Directory.Exists(backupPath))
+            {
+                Directory.Delete(
+                    backupPath,
+                    recursive: true);
+            }
+        }
+        catch
+        {
+            if (Directory.Exists(fullTargetPath))
+            {
+                Directory.Delete(
+                    fullTargetPath,
+                    recursive: true);
+            }
+
+            if (backupCreated &&
+                Directory.Exists(backupPath))
+            {
+                Directory.Move(
+                    backupPath,
+                    fullTargetPath);
+            }
+
+            throw;
+        }
     }
 
     private static async Task CopyDirectoryAsync(

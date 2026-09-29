@@ -1,6 +1,6 @@
-﻿using System.IO;
+﻿using Microsoft.WindowsAPICodePack.Dialogs;
+using System.IO;
 using System.Windows;
-using Microsoft.WindowsAPICodePack.Dialogs;
 using WorldHub.App.Services;
 using WorldHub.App.ViewModels;
 using WorldHub.Sync.Services;
@@ -12,45 +12,47 @@ public partial class MainWindow
     private readonly WorldAppService _worldAppService;
     private readonly List<WorldHistoryViewModel> _worldHistory = [];
     private readonly SnapshotAppService _snapshotAppService;
+    private readonly WorldDeletionService _worldDeletionService;
     private readonly List<WorldViewModel> _worlds = [];
-    private readonly Guid _localPlayerId =
-        Guid.Parse("11111111-1111-1111-1111-111111111111");
-
-    public MainWindow()
+    private readonly LocalPlayerIdentity _localPlayerIdentity;
+    private readonly WorldHubNetworkService _worldHubNetworkService;
+    public MainWindow(
+        WorldAppService worldAppService,
+        SnapshotAppService snapshotAppService,
+        WorldDeletionService worldDeletionService,
+        LocalPlayerIdentity localPlayerIdentity,
+        WorldHubNetworkService worldHubNetworkService)
     {
+        ArgumentNullException.ThrowIfNull(worldAppService);
+        ArgumentNullException.ThrowIfNull(snapshotAppService);
+        ArgumentNullException.ThrowIfNull(worldDeletionService);
+        ArgumentNullException.ThrowIfNull(localPlayerIdentity);
+        ArgumentNullException.ThrowIfNull(worldHubNetworkService);
+
         DebugConsole.Log("Creating MainWindow...");
 
         InitializeComponent();
 
         DebugConsole.Log("MainWindow UI initialized.");
 
-        var worldRepository =
-            WorldRepositoryFactory.Create();
+        _worldAppService = worldAppService;
+        _snapshotAppService = snapshotAppService;
+        _worldDeletionService = worldDeletionService;
+        _localPlayerIdentity = localPlayerIdentity;
+        _worldHubNetworkService = worldHubNetworkService;
 
-        DebugConsole.Log("World repository initialized.");
+        ConnectionPage.Initialize(_worldHubNetworkService);
 
-        var worldService =
-            new WorldService(worldRepository);
-
-        DebugConsole.Log("World service initialized.");
-
-        _worldAppService =
-            new WorldAppService(worldService);
-
-        var snapshotService =
-            SnapshotServiceFactory.Create();
-
-        _snapshotAppService =
-            new SnapshotAppService(snapshotService);
+        SettingsPage.Initialize(
+            _worldDeletionService,
+            _worlds,
+            RefreshDataAsync);
 
         DebugConsole.Log(
-            "Snapshot service initialized.");
-
-        DebugConsole.Log("World application service initialized.");
+            "Application services initialized.");
 
         Loaded += MainWindow_Loaded;
     }
-
     private async Task LoadHistoryAsync()
     {
         DebugConsole.Log("Loading snapshot history...");
@@ -77,6 +79,7 @@ public partial class MainWindow
             _worldHistory.Clear();
             _worldHistory.AddRange(history);
 
+            HistoryWorldsList.ItemsSource = null;
             HistoryWorldsList.ItemsSource = _worldHistory;
 
             DebugConsole.Log(
@@ -95,6 +98,32 @@ public partial class MainWindow
         }
     }
 
+    private void ConnectionNavigationButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        DebugConsole.Log(
+            "Connection page requested.");
+
+        WorldsPage.Visibility =
+            Visibility.Collapsed;
+
+        HistoryPage.Visibility =
+            Visibility.Collapsed;
+
+        SettingsPage.Visibility =
+            Visibility.Collapsed;
+
+        ConnectionPage.Visibility =
+            Visibility.Visible;
+
+        PageTitleText.Text =
+            "Подключение";
+
+        PageDescriptionText.Text =
+            "Подключение к другому WorldHub по IP-адресу и порту.";
+    }
+
     private async void HistoryNavigationButton_Click(
         object sender,
         RoutedEventArgs e)
@@ -104,8 +133,14 @@ public partial class MainWindow
         WorldsPage.Visibility =
             Visibility.Collapsed;
 
+        SettingsPage.Visibility =
+            Visibility.Collapsed;
+
         HistoryPage.Visibility =
             Visibility.Visible;
+
+        ConnectionPage.Visibility =
+            Visibility.Collapsed;
 
         PageTitleText.Text =
             "История";
@@ -122,7 +157,13 @@ public partial class MainWindow
     {
         DebugConsole.Log("My worlds page requested.");
 
+        ConnectionPage.Visibility =
+            Visibility.Collapsed;
+
         HistoryPage.Visibility =
+            Visibility.Collapsed;
+
+        SettingsPage.Visibility =
             Visibility.Collapsed;
 
         WorldsPage.Visibility =
@@ -133,6 +174,33 @@ public partial class MainWindow
 
         PageDescriptionText.Text =
             "Управляйте мирами, версиями и подключениями";
+    }
+
+    private void SettingsNavigationButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        DebugConsole.Log("Settings page requested.");
+
+        WorldsPage.Visibility =
+            Visibility.Collapsed;
+
+        HistoryPage.Visibility =
+            Visibility.Collapsed;
+
+        SettingsPage.Visibility =
+            Visibility.Visible;
+
+        ConnectionPage.Visibility =
+            Visibility.Collapsed;
+
+        PageTitleText.Text =
+            "Настройки";
+
+        PageDescriptionText.Text =
+            "Управление WorldHub, мирами и локальными данными";
+
+        SettingsPage.RefreshWorlds(_worlds);
     }
 
     private async void CreateSnapshotButton_Click(
@@ -182,7 +250,7 @@ public partial class MainWindow
             var snapshot =
                 await _snapshotAppService.CreateSnapshotAsync(
                     world,
-                    _localPlayerId,
+                    _localPlayerIdentity.PlayerId,
                     message);
 
             DebugConsole.Log(
@@ -394,11 +462,12 @@ public partial class MainWindow
             DebugConsole.Error(
                 $"Failed to add world: {exception}");
 
-            MessageBox.Show(
-                exception.Message,
+            var errorDialog = new Views.DialogWindow(
                 "Не удалось добавить мир",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+                exception.Message,
+                this);
+
+            errorDialog.ShowDialog();
         }
     }
 
@@ -415,6 +484,8 @@ public partial class MainWindow
             WorldsList.Visibility =
                 Visibility.Collapsed;
 
+            WorldsItemsControl.ItemsSource = null;
+
             DebugConsole.Log(
                 "World list is empty.");
 
@@ -427,8 +498,10 @@ public partial class MainWindow
         WorldsList.Visibility =
             Visibility.Visible;
 
-        WorldsList.DataContext =
-            _worlds;
+        // Передаём новый экземпляр коллекции,
+        // чтобы WPF гарантированно перестроил ItemsControl.
+        WorldsItemsControl.ItemsSource =
+            _worlds.ToList();
 
         DebugConsole.Log(
             "World list refreshed.");
@@ -496,6 +569,66 @@ public partial class MainWindow
             MessageBoxImage.Information);
     }
 
+    private async void RestoreSnapshotButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement element)
+        {
+            DebugConsole.Error(
+                "Restore button sender is invalid.");
+
+            return;
+        }
+
+        if (element.DataContext is not SnapshotViewModel snapshot)
+        {
+            DebugConsole.Error(
+                "Restore button has no SnapshotViewModel.");
+
+            return;
+        }
+
+        try
+        {
+            var world =
+                await _worldAppService.GetWorldByIdAsync(
+                    snapshot.WorldId);
+
+            if (world is null)
+            {
+                throw new InvalidOperationException(
+                    $"World '{snapshot.WorldId}' was not found.");
+            }
+
+            var restored =
+                await SnapshotRestoreHelper.RestoreAsync(
+                    this,
+                    world,
+                    snapshot,
+                    _snapshotAppService);
+
+            if (!restored)
+            {
+                return;
+            }
+
+            await LoadHistoryAsync();
+            await LoadWorldsAsync();
+        }
+        catch (Exception exception)
+        {
+            DebugConsole.Error(
+                $"Failed to prepare snapshot restore: {exception}");
+
+            MessageBox.Show(
+                exception.Message,
+                "Ошибка восстановления",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
     private void PullWorldButton_Click(
         object sender,
         RoutedEventArgs e)
@@ -525,5 +658,100 @@ public partial class MainWindow
             "Получить",
             MessageBoxButton.OK,
             MessageBoxImage.Information);
+    }
+
+    private async void DeleteWorldButton_Click(
+    object sender,
+    RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement element)
+        {
+            DebugConsole.Error(
+                "Delete button sender is invalid.");
+
+            return;
+        }
+
+        if (element.DataContext is not WorldViewModel worldViewModel)
+        {
+            DebugConsole.Error(
+                "Delete button has no WorldViewModel.");
+
+            return;
+        }
+
+        var result =
+            MessageBox.Show(
+                $"Удалить мир «{worldViewModel.Name}» из WorldHub?\n\n" +
+                "Все snapshots, история и связь WorldHub с этим миром будут удалены.\n\n" +
+                "Физический мир Minecraft НЕ будет удалён.\n" +
+                "Папка мира в Minecraft\\saves останется без изменений.\n\n" +
+                "Это действие нельзя отменить.",
+                "Удаление мира из WorldHub",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+        if (result != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        try
+        {
+            DebugConsole.Log(
+                $"Delete requested for world: {worldViewModel.Name}");
+
+            await _worldDeletionService.DeleteAsync(
+                worldViewModel.Id);
+
+            _worlds.RemoveAll(
+                world => world.Id == worldViewModel.Id);
+
+            RefreshWorldList();
+
+            if (HistoryPage.Visibility == Visibility.Visible)
+            {
+                await LoadHistoryAsync();
+            }
+
+            DebugConsole.Log(
+                $"World deleted from WorldHub: {worldViewModel.Name}");
+
+            MessageBox.Show(
+                $"Мир «{worldViewModel.Name}» удалён из WorldHub.\n\n" +
+                "Физический мир Minecraft сохранён.",
+                "Мир удалён",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (Exception exception)
+        {
+            DebugConsole.Error(
+                $"Failed to delete world '{worldViewModel.Name}': {exception}");
+
+            MessageBox.Show(
+                exception.Message,
+                "Ошибка удаления мира",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
+    public async Task RefreshDataAsync()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            await Dispatcher.InvokeAsync(
+                async () => await RefreshDataAsync());
+
+            return;
+        }
+
+        await LoadWorldsAsync();
+
+        if (HistoryPage.Visibility == Visibility.Visible)
+        {
+            await LoadHistoryAsync();
+        }
     }
 }

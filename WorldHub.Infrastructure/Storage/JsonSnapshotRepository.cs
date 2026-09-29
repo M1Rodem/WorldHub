@@ -128,6 +128,26 @@ public sealed class JsonSnapshotRepository : ISnapshotRepository
             : latestSnapshot.Version + 1;
     }
 
+    public Task DeleteByWorldIdAsync(
+    Guid worldId,
+    CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var directory = Path.Combine(
+            _snapshotsRootPath,
+            worldId.ToString());
+
+        if (Directory.Exists(directory))
+        {
+            Directory.Delete(
+                directory,
+                recursive: true);
+        }
+
+        return Task.CompletedTask;
+    }
+
     public async Task AddAsync(
         Snapshot snapshot,
         CancellationToken cancellationToken = default)

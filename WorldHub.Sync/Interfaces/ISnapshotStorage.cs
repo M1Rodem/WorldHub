@@ -17,4 +17,8 @@ public interface ISnapshotStorage
     Task DeleteAsync(
         Snapshot snapshot,
         CancellationToken cancellationToken = default);
+
+    Task DeleteByWorldIdAsync(
+        Guid worldId,
+        CancellationToken cancellationToken = default);
 }

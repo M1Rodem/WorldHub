@@ -11,6 +11,7 @@ public sealed class SnapshotService
     private readonly ISnapshotRepository _snapshotRepository;
     private readonly IWorldHashService _worldHashService;
     private readonly IWorldRepository _worldRepository;
+    private static long _lastSnapshotId;
 
     public SnapshotService(
         ISnapshotStorage snapshotStorage,
@@ -127,9 +128,11 @@ public sealed class SnapshotService
                 world.LocalPath,
                 cancellationToken);
 
+        var snapshotId = GenerateSnapshotId();
+
         var snapshot = new Snapshot
         {
-            Id = snapshotVersion,
+            Id = snapshotId,
             WorldId = world.Id,
             Version = snapshotVersion,
             ParentSnapshotId = parentSnapshot?.Id,
@@ -176,7 +179,24 @@ public sealed class SnapshotService
 
         return snapshot;
     }
+    private static long GenerateSnapshotId()
+    {
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
+        while (true)
+        {
+            var previous = Interlocked.Read(ref _lastSnapshotId);
+            var next = Math.Max(timestamp, previous + 1);
+
+            if (Interlocked.CompareExchange(
+                    ref _lastSnapshotId,
+                    next,
+                    previous) == previous)
+            {
+                return next;
+            }
+        }
+    }
     public async Task<Snapshot?> CreateIfChangedAsync(
         World world,
         Guid authorId,
@@ -231,6 +251,25 @@ public sealed class SnapshotService
             cancellationToken);
     }
 
+    public async Task DeleteByWorldIdAsync(
+        Guid worldId,
+        CancellationToken cancellationToken = default)
+    {
+        if (worldId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "World ID cannot be empty.",
+                nameof(worldId));
+        }
+
+        await _snapshotStorage.DeleteByWorldIdAsync(
+            worldId,
+            cancellationToken);
+
+        await _snapshotRepository.DeleteByWorldIdAsync(
+            worldId,
+            cancellationToken);
+    }
     public async Task RestoreAsync(
         World world,
         long snapshotId,

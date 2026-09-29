@@ -19,4 +19,8 @@ public interface IWorldOwnershipRepository
     Task<IReadOnlyCollection<WorldOwnership>> GetHistoryAsync(
         Guid worldId,
         CancellationToken cancellationToken = default);
+
+    Task DeleteByWorldIdAsync(
+        Guid worldId,
+        CancellationToken cancellationToken = default);
 }

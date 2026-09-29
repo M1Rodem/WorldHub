@@ -27,4 +27,8 @@ public interface ISnapshotRepository
     Task<long> GetNextVersionAsync(
         Guid worldId,
         CancellationToken cancellationToken = default);
+
+    Task DeleteByWorldIdAsync(
+        Guid worldId,
+        CancellationToken cancellationToken = default);
 }

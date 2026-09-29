@@ -7,10 +7,13 @@ namespace WorldHub.App.Services;
 public sealed class WorldAppService
 {
     private readonly WorldService _worldService;
-
-    public WorldAppService(WorldService worldService)
+    private readonly SnapshotService _snapshotService;
+    public WorldAppService(
+        WorldService worldService,
+        SnapshotService snapshotService)
     {
         _worldService = worldService;
+        _snapshotService = snapshotService;
     }
 
     public async Task<WorldViewModel> AddWorldAsync(
@@ -42,14 +45,35 @@ public sealed class WorldAppService
     }
 
     public async Task<IReadOnlyCollection<WorldViewModel>> GetWorldsAsync(
-        CancellationToken cancellationToken = default)
+    CancellationToken cancellationToken = default)
     {
         var worlds = await _worldService.GetAllAsync(
             cancellationToken);
 
-        return worlds
-            .Select(static world =>
-                new WorldViewModel(world))
-            .ToArray();
+        var result = new List<WorldViewModel>();
+
+        foreach (var world in worlds)
+        {
+            var currentSnapshotVersion = 0L;
+
+            if (world.CurrentSnapshotId > 0)
+            {
+                var snapshot = await _snapshotService.GetByIdAsync(
+                    world.CurrentSnapshotId,
+                    cancellationToken);
+
+                if (snapshot is not null)
+                {
+                    currentSnapshotVersion = snapshot.Version;
+                }
+            }
+
+            result.Add(
+                new WorldViewModel(
+                    world,
+                    currentSnapshotVersion));
+        }
+
+        return result;
     }
 }

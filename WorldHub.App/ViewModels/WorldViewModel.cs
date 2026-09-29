@@ -1,10 +1,16 @@
-﻿using WorldHub.Core.Entities;
+﻿using System.ComponentModel;
+using System.Runtime.CompilerServices;
+using WorldHub.Core.Entities;
 
 namespace WorldHub.App.ViewModels;
 
-public sealed class WorldViewModel
+public sealed class WorldViewModel : INotifyPropertyChanged
 {
-    public WorldViewModel(World world)
+    private bool _isSelected;
+    public long CurrentSnapshotVersion { get; }
+    public WorldViewModel(
+        World world,
+        long currentSnapshotVersion = 0)
     {
         Id = world.Id;
         Name = world.Name;
@@ -13,6 +19,8 @@ public sealed class WorldViewModel
         Loader = world.Loader;
         LoaderVersion = world.LoaderVersion;
         CurrentSnapshotId = world.CurrentSnapshotId;
+        CurrentSnapshotVersion = currentSnapshotVersion;
+        Status = world.Status.ToString();
     }
 
     public Guid Id { get; }
@@ -29,8 +37,46 @@ public sealed class WorldViewModel
 
     public long CurrentSnapshotId { get; }
 
+    public string Status { get; }
+
+    public string StatusText =>
+        Status switch
+        {
+            "Ready" => "Готов",
+            "Playing" => "Играется",
+            "Syncing" => "Синхронизация",
+            "Restoring" => "Восстановление",
+            "Error" => "Ошибка",
+            _ => Status
+        };
+
     public string VersionText =>
-        CurrentSnapshotId > 0
-            ? $"Версия #{CurrentSnapshotId}"
+        CurrentSnapshotVersion > 0
+            ? $"Снимок #{CurrentSnapshotVersion}"
             : "Нет snapshot";
+
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set
+        {
+            if (_isSelected == value)
+            {
+                return;
+            }
+
+            _isSelected = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void OnPropertyChanged(
+        [CallerMemberName] string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(
+            this,
+            new PropertyChangedEventArgs(propertyName));
+    }
 }
