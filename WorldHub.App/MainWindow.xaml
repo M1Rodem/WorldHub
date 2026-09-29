@@ -92,7 +92,8 @@
 
                     <Button Content="Мои миры"
                             Height="46"
-                            Margin="0,0,0,8"/>
+                            Margin="0,0,0,8"
+                            Click="MyWorldsButton_Click"/>
 
                     <Button Content="Подключение"
                             Height="46"
@@ -100,7 +101,8 @@
 
                     <Button Content="История"
                             Height="46"
-                            Margin="0,0,0,8"/>
+                            Margin="0,0,0,8"
+                            Click="HistoryNavigationButton_Click"/>
 
                     <Button Content="Настройки"
                             Height="46"/>
@@ -160,12 +162,14 @@
 
             <StackPanel>
 
-                <TextBlock Text="Мои миры"
+                <TextBlock x:Name="PageTitleText"
+                           Text="Мои миры"
                            FontSize="30"
                            FontWeight="SemiBold"
                            Foreground="White"/>
 
-                <TextBlock Text="Управляйте мирами, версиями и подключениями"
+                <TextBlock x:Name="PageDescriptionText"
+                           Text="Управляйте мирами, версиями и подключениями"
                            Margin="0,6,0,0"
                            FontSize="14"
                            Foreground="#71809A"/>
@@ -178,170 +182,277 @@
             <Grid Grid.Row="1"
                   Margin="0,30,0,0">
 
-                <Grid.RowDefinitions>
 
-                    <RowDefinition Height="Auto"/>
+                <!-- ==================== -->
+                <!-- MY WORLDS -->
+                <!-- ==================== -->
 
-                    <RowDefinition Height="*"/>
+                <Grid x:Name="WorldsPage">
 
-                </Grid.RowDefinitions>
+                    <Grid.RowDefinitions>
 
+                        <RowDefinition Height="Auto"/>
 
-                <!-- ACTIONS -->
+                        <RowDefinition Height="*"/>
 
-                <StackPanel Orientation="Horizontal">
-
-                    <Button Content="+ Подключить мир"
-                            Width="170"
-                            Height="40"
-                            Click="AddWorldButton_Click"/>
-
-                    <Button Content="Подключиться к другу"
-                            Width="190"
-                            Height="40"
-                            Margin="10,0,0,0"/>
-
-                </StackPanel>
+                    </Grid.RowDefinitions>
 
 
-                <!-- EMPTY STATE -->
+                    <!-- ACTIONS -->
 
-                <Border x:Name="EmptyState"
-                        Grid.Row="1"
-                        Margin="0,20,0,0"
-                        Background="#101A2D"
-                        BorderBrush="#1D2A42"
-                        BorderThickness="1"
-                        CornerRadius="12">
+                    <StackPanel Orientation="Horizontal">
 
-                    <StackPanel HorizontalAlignment="Center"
-                                VerticalAlignment="Center">
-
-                        <TextBlock Text="Миров пока нет"
-                                   FontSize="22"
-                                   FontWeight="SemiBold"
-                                   Foreground="White"
-                                   HorizontalAlignment="Center"/>
-
-                        <TextBlock Text="Подключите существующий Minecraft-мир, чтобы начать"
-                                   Margin="0,10,0,20"
-                                   Foreground="#71809A"
-                                   HorizontalAlignment="Center"/>
-
-                        <Button Content="Подключить первый мир"
-                                Width="190"
-                                Height="42"
+                        <Button Content="+ Подключить мир"
+                                Width="170"
+                                Height="40"
                                 Click="AddWorldButton_Click"/>
+
+                        <Button Content="Подключиться к другу"
+                                Width="190"
+                                Height="40"
+                                Margin="10,0,0,0"/>
 
                     </StackPanel>
 
-                </Border>
+
+                    <!-- EMPTY STATE -->
+
+                    <Border x:Name="EmptyState"
+                            Grid.Row="1"
+                            Margin="0,20,0,0"
+                            Background="#101A2D"
+                            BorderBrush="#1D2A42"
+                            BorderThickness="1"
+                            CornerRadius="12">
+
+                        <StackPanel HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+
+                            <TextBlock Text="Миров пока нет"
+                                       FontSize="22"
+                                       FontWeight="SemiBold"
+                                       Foreground="White"
+                                       HorizontalAlignment="Center"/>
+
+                            <TextBlock Text="Подключите существующий Minecraft-мир, чтобы начать"
+                                       Margin="0,10,0,20"
+                                       Foreground="#71809A"
+                                       HorizontalAlignment="Center"/>
+
+                            <Button Content="Подключить первый мир"
+                                    Width="190"
+                                    Height="42"
+                                    Click="AddWorldButton_Click"/>
+
+                        </StackPanel>
+
+                    </Border>
 
 
-                <!-- WORLD LIST -->
+                    <!-- WORLD LIST -->
 
-                <ScrollViewer x:Name="WorldsList"
-                              Grid.Row="1"
-                              Margin="0,20,0,0"
-                              Visibility="Collapsed"
-                              VerticalScrollBarVisibility="Auto">
+                    <ScrollViewer x:Name="WorldsList"
+                                  Grid.Row="1"
+                                  Margin="0,20,0,0"
+                                  Visibility="Collapsed"
+                                  VerticalScrollBarVisibility="Auto">
 
-                    <ItemsControl ItemsSource="{Binding}">
+                        <ItemsControl ItemsSource="{Binding}">
 
-                        <ItemsControl.ItemTemplate>
+                            <ItemsControl.ItemTemplate>
 
-                            <DataTemplate>
+                                <DataTemplate>
 
-                                <Border Margin="0,0,0,12"
-                                        Padding="20"
-                                        Background="#101A2D"
-                                        BorderBrush="#1D2A42"
-                                        BorderThickness="1"
-                                        CornerRadius="12">
+                                    <Border Margin="0,0,0,12"
+                                            Padding="20"
+                                            Background="#101A2D"
+                                            BorderBrush="#1D2A42"
+                                            BorderThickness="1"
+                                            CornerRadius="12">
 
-                                    <Grid>
+                                        <Grid>
 
-                                        <Grid.ColumnDefinitions>
+                                            <Grid.ColumnDefinitions>
 
-                                            <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
 
-                                            <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
 
-                                        </Grid.ColumnDefinitions>
+                                            </Grid.ColumnDefinitions>
 
 
-                                        <StackPanel>
+                                            <StackPanel>
 
-                                            <TextBlock Text="{Binding Name}"
-                                                       FontSize="20"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="White"/>
+                                                <TextBlock Text="{Binding Name}"
+                                                           FontSize="20"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="White"/>
 
-                                            <TextBlock Text="{Binding LocalPath}"
-                                                       Margin="0,6,0,0"
-                                                       FontSize="12"
-                                                       Foreground="#71809A"/>
+                                                <TextBlock Text="{Binding LocalPath}"
+                                                           Margin="0,6,0,0"
+                                                           FontSize="12"
+                                                           Foreground="#71809A"/>
 
-                                            <StackPanel Orientation="Horizontal"
-                                                        Margin="0,10,0,0">
+                                                <StackPanel Orientation="Horizontal"
+                                                            Margin="0,10,0,0">
 
-                                                <TextBlock Text="{Binding MinecraftVersion}"
-                                                           Foreground="#A9B7CC"/>
+                                                    <TextBlock Text="{Binding MinecraftVersion}"
+                                                               Foreground="#A9B7CC"/>
 
-                                                <TextBlock Text=" • "
-                                                           Foreground="#52627B"/>
+                                                    <TextBlock Text=" • "
+                                                               Foreground="#52627B"/>
 
-                                                <TextBlock Text="{Binding Loader}"
-                                                           Foreground="#A9B7CC"/>
+                                                    <TextBlock Text="{Binding Loader}"
+                                                               Foreground="#A9B7CC"/>
 
-                                                <TextBlock Text=" • "
-                                                           Foreground="#52627B"/>
+                                                    <TextBlock Text=" • "
+                                                               Foreground="#52627B"/>
 
-                                                <TextBlock Text="{Binding VersionText}"
-                                                           Foreground="#A9B7CC"/>
+                                                    <TextBlock Text="{Binding VersionText}"
+                                                               Foreground="#A9B7CC"/>
+
+                                                </StackPanel>
 
                                             </StackPanel>
 
-                                        </StackPanel>
+
+                                            <StackPanel Grid.Column="1"
+                                                        Orientation="Horizontal"
+                                                        VerticalAlignment="Center">
+
+                                                <Button Content="Отправить"
+                                                        Width="100"
+                                                        Height="38"
+                                                        Margin="8,0,0,0"
+                                                        Click="PushWorldButton_Click"/>
+
+                                                <Button Content="Получить"
+                                                        Width="100"
+                                                        Height="38"
+                                                        Margin="8,0,0,0"
+                                                        Click="PullWorldButton_Click"/>
+
+                                            </StackPanel>
+
+                                        </Grid>
+
+                                    </Border>
+
+                                </DataTemplate>
+
+                            </ItemsControl.ItemTemplate>
+
+                        </ItemsControl>
+
+                    </ScrollViewer>
+
+                </Grid>
 
 
-                                        <StackPanel Grid.Column="1"
-                                            Orientation="Horizontal"
-                                            VerticalAlignment="Center">
+                <!-- ==================== -->
+                <!-- HISTORY -->
+                <!-- ==================== -->
 
-                                            <Button Content="Создать snapshot"
-                                                Width="145"
-                                                Height="38"
-                                                Click="CreateSnapshotButton_Click"/>
+                <Grid x:Name="HistoryPage"
+                      Visibility="Collapsed">
 
-                                            <Button Content="Играть"
-                                                Width="90"
-                                                Height="38"
-                                                Margin="8,0,0,0"/>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
 
-                                            <Button Content="Отправить"
-                                                Width="100"
-                                                Height="38"
-                                                Margin="8,0,0,0"/>
+                        <ItemsControl x:Name="HistoryWorldsList">
 
-                                            <Button Content="Получить"
-                                                Width="100"
-                                                Height="38"
-                                                Margin="8,0,0,0"/>
+                            <ItemsControl.ItemTemplate>
 
-                                        </StackPanel>
+                                <DataTemplate>
 
-                                    </Grid>
+                                    <StackPanel Margin="0,0,0,24">
 
-                                </Border>
+                                        <TextBlock Text="{Binding WorldName}"
+                                                   FontSize="20"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="White"/>
 
-                            </DataTemplate>
+                                        <TextBlock Text="{Binding WorldPath}"
+                                                   Margin="0,5,0,12"
+                                                   FontSize="12"
+                                                   Foreground="#71809A"/>
 
-                        </ItemsControl.ItemTemplate>
 
-                    </ItemsControl>
+                                        <ItemsControl ItemsSource="{Binding Snapshots}">
 
-                </ScrollViewer>
+                                            <ItemsControl.ItemTemplate>
+
+                                                <DataTemplate>
+
+                                                    <Border Margin="0,0,0,10"
+                                                            Padding="16"
+                                                            Background="#101A2D"
+                                                            BorderBrush="#1D2A42"
+                                                            BorderThickness="1"
+                                                            CornerRadius="10">
+
+                                                        <Grid>
+
+                                                            <Grid.ColumnDefinitions>
+
+                                                                <ColumnDefinition Width="*"/>
+
+                                                                <ColumnDefinition Width="Auto"/>
+
+                                                            </Grid.ColumnDefinitions>
+
+
+                                                            <StackPanel>
+
+                                                                <TextBlock Text="{Binding VersionText}"
+                                                                           FontSize="17"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="White"/>
+
+                                                                <TextBlock Text="{Binding CreatedText}"
+                                                                           Margin="0,5,0,0"
+                                                                           FontSize="12"
+                                                                           Foreground="#71809A"/>
+
+                                                                <TextBlock Text="{Binding Message}"
+                                                                           Margin="0,8,0,0"
+                                                                           Foreground="#A9B7CC"/>
+
+                                                                <TextBlock Text="{Binding ShortHash}"
+                                                                           Margin="0,8,0,0"
+                                                                           FontSize="11"
+                                                                           Foreground="#52627B"/>
+
+                                                            </StackPanel>
+
+
+                                                            <Button Grid.Column="1"
+                                                                    Content="Восстановить"
+                                                                    Width="130"
+                                                                    Height="38"
+                                                                    VerticalAlignment="Center"
+                                                                    IsEnabled="False"/>
+
+                                                        </Grid>
+
+                                                    </Border>
+
+                                                </DataTemplate>
+
+                                            </ItemsControl.ItemTemplate>
+
+                                        </ItemsControl>
+
+                                    </StackPanel>
+
+                                </DataTemplate>
+
+                            </ItemsControl.ItemTemplate>
+
+                        </ItemsControl>
+
+                    </ScrollViewer>
+
+                </Grid>
 
             </Grid>
 

@@ -6,6 +6,7 @@ namespace WorldHub.Sync.Services;
 
 public sealed class SnapshotService
 {
+    private const int MaxLocalSnapshots = 3;
     private readonly ISnapshotStorage _snapshotStorage;
     private readonly ISnapshotRepository _snapshotRepository;
     private readonly IWorldHashService _worldHashService;
@@ -21,6 +22,33 @@ public sealed class SnapshotService
         _snapshotRepository = snapshotRepository;
         _worldHashService = worldHashService;
         _worldRepository = worldRepository;
+    }
+
+    private async Task CleanupOldSnapshotsAsync(
+        Guid worldId,
+        CancellationToken cancellationToken)
+    {
+        var snapshots =
+            await _snapshotRepository.GetByWorldIdAsync(
+                worldId,
+                cancellationToken);
+
+        var snapshotsToDelete =
+            snapshots
+                .OrderByDescending(x => x.Version)
+                .Skip(MaxLocalSnapshots)
+                .ToArray();
+
+        foreach (var snapshot in snapshotsToDelete)
+        {
+            await _snapshotStorage.DeleteAsync(
+                snapshot,
+                cancellationToken);
+
+            await _snapshotRepository.DeleteAsync(
+                snapshot.Id,
+                cancellationToken);
+        }
     }
 
     public async Task<bool> HasChangesAsync(
@@ -140,6 +168,10 @@ public sealed class SnapshotService
 
         await _worldRepository.UpdateAsync(
             world,
+            cancellationToken);
+
+        await CleanupOldSnapshotsAsync(
+            world.Id,
             cancellationToken);
 
         return snapshot;
