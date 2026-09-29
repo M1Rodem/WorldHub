@@ -8,4 +8,11 @@ public interface ITransferTransport
         long totalBytes,
         IProgress<long>? progress = null,
         CancellationToken cancellationToken = default);
+
+    Task ReceiveAsync(
+        Stream source,
+        Stream destination,
+        long totalBytes,
+        IProgress<long>? progress = null,
+        CancellationToken cancellationToken = default);
 }

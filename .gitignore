@@ -43,3 +43,6 @@ desktop.ini
 
 # Minecraft
 .minecraft/
+# WorldHub release artifacts
+/publish/
+/release/

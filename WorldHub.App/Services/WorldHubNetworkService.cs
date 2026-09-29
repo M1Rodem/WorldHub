@@ -1,4 +1,5 @@
-﻿using WorldHub.Network.Models;
+﻿using System.IO;
+using WorldHub.Network.Models;
 using WorldHub.Network.Services;
 
 namespace WorldHub.App.Services;
@@ -6,26 +7,27 @@ namespace WorldHub.App.Services;
 public sealed class WorldHubNetworkService : IDisposable
 {
     private const int DefaultPort = 27072;
-
+    private readonly WorldHubTransferService _transferService;
     private readonly NetworkService _networkService;
     private readonly int _port;
-
     private CancellationTokenSource? _cancellationTokenSource;
     private Task? _listenerTask;
 
     public WorldHubNetworkService(
         NetworkService networkService,
+        WorldHubTransferService transferService,
         int port = DefaultPort)
     {
         ArgumentNullException.ThrowIfNull(networkService);
+        ArgumentNullException.ThrowIfNull(transferService);
 
         if (port is < 1 or > 65535)
         {
-            throw new ArgumentOutOfRangeException(
-                nameof(port));
+            throw new ArgumentOutOfRangeException(nameof(port));
         }
 
         _networkService = networkService;
+        _transferService = transferService;
         _port = port;
     }
 
@@ -106,6 +108,28 @@ public sealed class WorldHubNetworkService : IDisposable
 
                 DebugConsole.Log(
                     "WorldHub network handshake accepted successfully.");
+
+                try
+                {
+                    await _transferService.HandleIncomingAsync(
+                        connection,
+                        cancellationToken);
+                }
+                catch (EndOfStreamException)
+                {
+                    DebugConsole.Log(
+                        "WorldHub network connection closed without transfer.");
+                }
+                catch (InvalidDataException exception)
+                {
+                    DebugConsole.Error(
+                        $"WorldHub transfer protocol error: {exception.Message}");
+                }
+                catch (Exception exception)
+                {
+                    DebugConsole.Error(
+                        $"WorldHub incoming transfer failed: {exception}");
+                }
             }
             catch (OperationCanceledException)
             {

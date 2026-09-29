@@ -229,6 +229,30 @@ public partial class ConnectionView : UserControl
         }
     }
 
+    public bool TryGetFriendEndpoint(
+        out string host,
+        out int port)
+    {
+        host = HostTextBox.Text.Trim();
+
+        if (string.IsNullOrWhiteSpace(host))
+        {
+            port = 0;
+            return false;
+        }
+
+        if (!int.TryParse(
+                PortTextBox.Text.Trim(),
+                out port) ||
+            port is < 1 or > 65535)
+        {
+            port = 0;
+            return false;
+        }
+
+        return true;
+    }
+
     private void SetConnectionStatus(
         string message)
     {

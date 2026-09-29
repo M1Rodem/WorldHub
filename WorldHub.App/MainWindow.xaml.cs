@@ -16,12 +16,14 @@ public partial class MainWindow
     private readonly List<WorldViewModel> _worlds = [];
     private readonly LocalPlayerIdentity _localPlayerIdentity;
     private readonly WorldHubNetworkService _worldHubNetworkService;
+    private readonly WorldHubTransferService _worldHubTransferService;
     public MainWindow(
         WorldAppService worldAppService,
         SnapshotAppService snapshotAppService,
         WorldDeletionService worldDeletionService,
         LocalPlayerIdentity localPlayerIdentity,
-        WorldHubNetworkService worldHubNetworkService)
+        WorldHubNetworkService worldHubNetworkService,
+        WorldHubTransferService worldHubTransferService)
     {
         ArgumentNullException.ThrowIfNull(worldAppService);
         ArgumentNullException.ThrowIfNull(snapshotAppService);
@@ -40,6 +42,7 @@ public partial class MainWindow
         _worldDeletionService = worldDeletionService;
         _localPlayerIdentity = localPlayerIdentity;
         _worldHubNetworkService = worldHubNetworkService;
+        _worldHubTransferService = worldHubTransferService;
 
         ConnectionPage.Initialize(_worldHubNetworkService);
 
@@ -538,35 +541,106 @@ public partial class MainWindow
             MessageBoxImage.Information);
     }
 
-    private void PushWorldButton_Click(
-        object sender,
-        RoutedEventArgs e)
+    private async void PushWorldButton_Click(
+    object sender,
+    RoutedEventArgs e)
     {
         if (sender is not FrameworkElement element)
         {
-            DebugConsole.Error(
-                "Push button sender is invalid.");
-
             return;
         }
 
         if (element.DataContext is not WorldViewModel worldViewModel)
         {
-            DebugConsole.Error(
-                "Push button has no WorldViewModel.");
+            return;
+        }
+
+        if (!ConnectionPage.TryGetFriendEndpoint(
+                out var host,
+                out var port))
+        {
+            MessageBox.Show(
+                "Сначала укажите IP-адрес и порт другого WorldHub " +
+                "на странице подключения.",
+                "Отправка мира",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+
+            return;
+        }
+
+        var world =
+            await _worldAppService.GetWorldByIdAsync(
+                worldViewModel.Id);
+
+        if (world is null)
+        {
+            MessageBox.Show(
+                "Мир не найден.",
+                "Отправка мира",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+
+            return;
+        }
+
+        if (world.CurrentSnapshotId <= 0)
+        {
+            MessageBox.Show(
+                $"У мира «{world.Name}» нет snapshot.\n\n" +
+                "Сначала создайте snapshot.",
+                "Отправка мира",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
 
             return;
         }
 
         DebugConsole.Log(
-            $"Push requested for world: {worldViewModel.Name}");
+            $"Push requested: {world.Name} -> {host}:{port}");
 
-        MessageBox.Show(
-            $"Отправка мира:\n\n{worldViewModel.Name}\n\n" +
-            "Синхронизация будет добавлена позже.",
-            "Отправить",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
+        try
+        {
+            var progress =
+                new Progress<long>(
+                    transferredBytes =>
+                    {
+                        DebugConsole.Log(
+                            $"Push progress: {transferredBytes:N0} bytes.");
+                    });
+
+            await _worldHubTransferService.PushAsync(
+                world,
+                host,
+                port,
+                progress);
+
+            MessageBox.Show(
+                $"Мир «{world.Name}» успешно отправлен.\n\n" +
+                $"Получатель: {host}:{port}",
+                "Отправка завершена",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+
+            DebugConsole.Log(
+                $"Push completed: {world.Name} -> {host}:{port}");
+        }
+        catch (OperationCanceledException)
+        {
+            DebugConsole.Log(
+                $"Push cancelled: {world.Name}");
+        }
+        catch (Exception exception)
+        {
+            DebugConsole.Error(
+                $"Push failed for world '{world.Name}': {exception}");
+
+            MessageBox.Show(
+                $"Не удалось отправить мир.\n\n{exception.Message}",
+                "Ошибка отправки",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
     }
 
     private async void RestoreSnapshotButton_Click(
@@ -629,9 +703,9 @@ public partial class MainWindow
         }
     }
 
-    private void PullWorldButton_Click(
-        object sender,
-        RoutedEventArgs e)
+    private async void PullWorldButton_Click(
+    object sender,
+    RoutedEventArgs e)
     {
         if (sender is not FrameworkElement element)
         {
@@ -649,15 +723,123 @@ public partial class MainWindow
             return;
         }
 
-        DebugConsole.Log(
-            $"Pull requested for world: {worldViewModel.Name}");
+        if (!ConnectionPage.TryGetFriendEndpoint(
+                out var host,
+                out var port))
+        {
+            MessageBox.Show(
+                "Сначала укажите IP-адрес и порт другого WorldHub " +
+                "на странице подключения.",
+                "Получение мира",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
 
-        MessageBox.Show(
-            $"Получение мира:\n\n{worldViewModel.Name}\n\n" +
-            "Синхронизация будет добавлена позже.",
-            "Получить",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
+            return;
+        }
+
+        var world =
+            await _worldAppService.GetWorldByIdAsync(
+                worldViewModel.Id);
+
+        if (world is null)
+        {
+            MessageBox.Show(
+                "Мир не найден.",
+                "Получение мира",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+
+            return;
+        }
+
+        string? targetPath = null;
+
+        var receivedWorldsRoot =
+            Path.Combine(
+                Environment.GetFolderPath(
+                    Environment.SpecialFolder.LocalApplicationData),
+                "WorldHub",
+                "data",
+                "received-worlds");
+
+        var isTemporaryWorld =
+            Path.GetFullPath(world.LocalPath)
+                .StartsWith(
+                    Path.GetFullPath(receivedWorldsRoot) +
+                    Path.DirectorySeparatorChar,
+                    StringComparison.OrdinalIgnoreCase);
+
+        if (isTemporaryWorld)
+        {
+            using var dialog =
+                new CommonOpenFileDialog
+                {
+                    IsFolderPicker = true,
+                    Multiselect = false,
+                    Title = "Выберите папку Minecraft мира"
+                };
+
+            if (dialog.ShowDialog() !=
+                CommonFileDialogResult.Ok)
+            {
+                DebugConsole.Log(
+                    $"Pull cancelled: {world.Name}");
+
+                return;
+            }
+
+            targetPath =
+                dialog.FileName;
+        }
+
+        DebugConsole.Log(
+            $"Pull requested: {world.Name} <- {host}:{port}");
+
+        try
+        {
+            var progress =
+                new Progress<long>(
+                    transferredBytes =>
+                    {
+                        DebugConsole.Log(
+                            $"Pull progress: {transferredBytes:N0} bytes.");
+                    });
+
+            await _worldHubTransferService.PullAsync(
+                world,
+                host,
+                port,
+                targetPath,
+                progress);
+
+            await LoadHistoryAsync();
+            await LoadWorldsAsync();
+
+            MessageBox.Show(
+                $"Мир «{world.Name}» успешно получен.",
+                "Получение завершено",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+
+            DebugConsole.Log(
+                $"Pull completed: {world.Name} <- {host}:{port}");
+        }
+        catch (OperationCanceledException)
+        {
+            DebugConsole.Log(
+                $"Pull cancelled: {world.Name}");
+        }
+        catch (Exception exception)
+        {
+            DebugConsole.Error(
+                $"Pull failed for world '{world.Name}': {exception}");
+
+            MessageBox.Show(
+                $"Не удалось получить мир.\n\n{exception.Message}",
+                "Ошибка получения",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
     }
 
     private async void DeleteWorldButton_Click(

@@ -98,26 +98,40 @@ public partial class App : Application
                 Guid.Parse(
                     "11111111-1111-1111-1111-111111111111"));
 
-        var networkProvider =
-            new TcpNetworkProvider();
+        var networkProvider = new TcpNetworkProvider();
 
         var networkService =
             new NetworkService(networkProvider);
 
+        var receivedWorldsPath =
+            Path.Combine(
+                dataPath,
+                "received-worlds");
+
+        var worldHubTransferService =
+            new WorldHubTransferService(
+                networkService,
+                snapshotRepository,
+                worldService,
+                snapshotService,
+                receivedWorldsPath,
+                localPlayerIdentity.PlayerId);
+
         _worldHubNetworkService =
             new WorldHubNetworkService(
                 networkService,
+                worldHubTransferService,
                 networkPort);
 
         _worldHubNetworkService.Start();
 
-        var mainWindow =
-            new MainWindow(
-                worldAppService,
-                snapshotAppService,
-                worldDeletionService,
-                localPlayerIdentity,
-                _worldHubNetworkService);
+        var mainWindow = new MainWindow(
+            worldAppService,
+            snapshotAppService,
+            worldDeletionService,
+            localPlayerIdentity,
+            _worldHubNetworkService,
+            worldHubTransferService);
 
         MainWindow = mainWindow;
 
