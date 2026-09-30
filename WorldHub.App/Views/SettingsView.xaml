@@ -75,6 +75,91 @@
                     <TextBlock Text="Дополнительные настройки WorldHub будут доступны здесь." Margin="0,6,0,0" FontSize="13" Foreground="#71809A"/>
                 </StackPanel>
             </Border>
+            <!-- ABOUT -->
+            <Border Margin="0,20,0,0"
+        Padding="20"
+        Background="#101A2D"
+        BorderBrush="#1D2A42"
+        BorderThickness="1"
+        CornerRadius="12">
+                <StackPanel>
+
+                    <TextBlock Text="О программе"
+                   FontSize="20"
+                   FontWeight="SemiBold"
+                   Foreground="White"/>
+
+                    <TextBlock Text="WorldHub"
+                   Margin="0,6,0,0"
+                   FontSize="15"
+                   FontWeight="SemiBold"
+                   Foreground="#A9B7CC"/>
+
+                    <TextBlock Text="Приложение для управления Minecraft-миром"
+                   Margin="0,2,0,12"
+                   FontSize="12"
+                   Foreground="#71809A"/>
+
+                    <StackPanel Orientation="Horizontal"
+                    Margin="0,0,0,14">
+
+                        <TextBlock Text="Версия: "
+                       FontSize="12"
+                       Foreground="#71809A"/>
+
+                        <TextBlock x:Name="AppVersionText"
+                       FontSize="12"
+                       Foreground="#A9B7CC"/>
+
+                        <TextBlock Text="    Платформа: Windows x64"
+                       FontSize="12"
+                       Foreground="#71809A"/>
+
+                    </StackPanel>
+
+                    <TextBlock Text="Обновления"
+                   FontSize="14"
+                   FontWeight="SemiBold"
+                   Foreground="White"/>
+
+                    <TextBlock x:Name="UpdateStatusText"
+                   Margin="0,4,0,0"
+                   Text="● Проверка ещё не выполнялась"
+                   FontSize="12"
+                   Foreground="#A9B7CC"/>
+
+                    <TextBlock x:Name="LatestVersionText"
+                   Margin="0,3,0,0"
+                   FontSize="12"
+                   Foreground="#71809A"
+                   Visibility="Collapsed"/>
+
+                    <TextBlock x:Name="LastUpdateCheckText"
+                   Margin="0,3,0,14"
+                   FontSize="11"
+                   Foreground="#71809A"
+                   Visibility="Collapsed"/>
+
+                    <StackPanel Orientation="Horizontal">
+
+                        <Button x:Name="CheckUpdateButton"
+                    Content="Проверить обновления"
+                    Width="190"
+                    Height="36"
+                    Click="CheckUpdateButton_Click"/>
+
+                        <Button x:Name="UpdateButton"
+                    Content="Обновить"
+                    Margin="8,0,0,0"
+                    Width="110"
+                    Height="36"
+                    IsEnabled="False"
+                    Click="UpdateButton_Click"/>
+
+                    </StackPanel>
+
+                </StackPanel>
+            </Border>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

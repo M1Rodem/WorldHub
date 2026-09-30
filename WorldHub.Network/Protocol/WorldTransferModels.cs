@@ -2,7 +2,7 @@
 
 public sealed record PushRequest(
     Guid WorldId,
-    long SnapshotId);
+    int SnapshotCount);
 
 public sealed record PullRequest(
     string WorldName);
@@ -16,6 +16,8 @@ public sealed record SnapshotTransferMetadata(
     string? ModpackHash,
     long SnapshotId,
     long SnapshotVersion,
+    long? ParentSnapshotId,
+    Guid AuthorId,
     string WorldHash,
     string Message,
     DateTime CreatedAt,

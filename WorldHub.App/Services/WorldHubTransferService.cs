@@ -51,19 +51,18 @@ public sealed class WorldHubTransferService
     }
 
     public async Task PushAsync(
-        World world,
-        string host,
-        int port,
-        IProgress<long>? progress = null,
-        CancellationToken cancellationToken = default)
+    World world,
+    string host,
+    int port,
+    IProgress<long>? progress = null,
+    CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(world);
         ArgumentException.ThrowIfNullOrWhiteSpace(host);
 
         if (port is < 1 or > 65535)
         {
-            throw new ArgumentOutOfRangeException(
-                nameof(port));
+            throw new ArgumentOutOfRangeException(nameof(port));
         }
 
         if (world.CurrentSnapshotId <= 0)
@@ -72,30 +71,61 @@ public sealed class WorldHubTransferService
                 $"World '{world.Name}' does not have a current snapshot.");
         }
 
-        var snapshot =
-            await _snapshotRepository.GetByIdAsync(
-                world.CurrentSnapshotId,
+        var history =
+            await _snapshotRepository.GetByWorldIdAsync(
+                world.Id,
                 cancellationToken);
 
-        if (snapshot is null)
+        var snapshots =
+            history
+                .OrderByDescending(snapshot => snapshot.Version)
+                .Take(3)
+                .OrderBy(snapshot => snapshot.Version)
+                .ToArray();
+
+        if (snapshots.Length == 0)
         {
             throw new InvalidOperationException(
-                $"Current snapshot '{world.CurrentSnapshotId}' was not found.");
+                $"World '{world.Name}' does not have snapshots.");
         }
 
-        if (!Directory.Exists(snapshot.StoragePath))
+        if (snapshots[^1].Id != world.CurrentSnapshotId)
         {
-            throw new DirectoryNotFoundException(
-                $"Snapshot storage was not found: {snapshot.StoragePath}");
+            throw new InvalidOperationException(
+                $"Current snapshot '{world.CurrentSnapshotId}' was not found in world history.");
         }
 
-        var files =
-            BuildFileList(
-                snapshot.StoragePath,
-                cancellationToken);
+        var snapshotTransfers =
+            new List<SnapshotTransfer>(snapshots.Length);
 
-        var totalBytes =
-            files.Sum(static file => file.Length);
+        long totalTransferBytes = 0;
+
+        foreach (var snapshot in snapshots)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (!Directory.Exists(snapshot.StoragePath))
+            {
+                throw new DirectoryNotFoundException(
+                    $"Snapshot storage was not found: {snapshot.StoragePath}");
+            }
+
+            var files =
+                BuildFileList(
+                    snapshot.StoragePath,
+                    cancellationToken);
+
+            var totalBytes =
+                files.Sum(static file => file.Length);
+
+            snapshotTransfers.Add(
+                new SnapshotTransfer(
+                    snapshot,
+                    files,
+                    totalBytes));
+
+            totalTransferBytes += totalBytes;
+        }
 
         await using var connection =
             await _networkService.ConnectAsync(
@@ -112,71 +142,80 @@ public sealed class WorldHubTransferService
             connection,
             new PushRequest(
                 world.Id,
-                snapshot.Id),
-            cancellationToken);
-
-        var metadata =
-            new SnapshotTransferMetadata(
-                world.Id,
-                world.Name,
-                world.MinecraftVersion,
-                world.Loader,
-                world.LoaderVersion,
-                world.ModpackHash,
-                snapshot.Id,
-                snapshot.Version,
-                snapshot.WorldHash,
-                snapshot.Message,
-                snapshot.CreatedAt,
-                totalBytes,
-                files.Count);
-
-        await WorldTransferProtocol.SendJsonAsync(
-            connection,
-            metadata,
+                snapshots.Length),
             cancellationToken);
 
         long transferredBytes = 0;
 
-        foreach (var file in files)
+        foreach (var transfer in snapshotTransfers)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            var snapshot = transfer.Snapshot;
+
+            var metadata =
+                new SnapshotTransferMetadata(
+                    world.Id,
+                    world.Name,
+                    world.MinecraftVersion,
+                    world.Loader,
+                    world.LoaderVersion,
+                    world.ModpackHash,
+                    snapshot.Id,
+                    snapshot.Version,
+                    snapshot.ParentSnapshotId,
+                    snapshot.AuthorId,
+                    snapshot.WorldHash,
+                    snapshot.Message,
+                    snapshot.CreatedAt,
+                    transfer.TotalBytes,
+                    transfer.Files.Count);
+
             await WorldTransferProtocol.SendJsonAsync(
                 connection,
-                new SnapshotFileMetadata(
-                    file.RelativePath,
-                    file.Length),
+                metadata,
                 cancellationToken);
 
-            await using var source =
-                new FileStream(
-                    file.FullPath,
-                    FileMode.Open,
-                    FileAccess.Read,
-                    FileShare.Read,
-                    64 * 1024,
-                    useAsync: true);
+            foreach (var file in transfer.Files)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
 
-            var fileProgress =
-                new Progress<long>(
-                    fileTransferred =>
-                    {
-                        progress?.Report(
-                            transferredBytes + fileTransferred);
-                    });
+                await WorldTransferProtocol.SendJsonAsync(
+                    connection,
+                    new SnapshotFileMetadata(
+                        file.RelativePath,
+                        file.Length),
+                    cancellationToken);
 
-            await WorldTransferProtocol.SendFileAsync(
-                connection,
-                source,
-                file.Length,
-                fileProgress,
-                cancellationToken);
+                await using var source =
+                    new FileStream(
+                        file.FullPath,
+                        FileMode.Open,
+                        FileAccess.Read,
+                        FileShare.Read,
+                        64 * 1024,
+                        useAsync: true);
 
-            transferredBytes += file.Length;
+                var fileProgress =
+                    new Progress<long>(
+                        fileTransferred =>
+                        {
+                            progress?.Report(
+                                transferredBytes + fileTransferred);
+                        });
 
-            progress?.Report(
-                transferredBytes);
+                await WorldTransferProtocol.SendFileAsync(
+                    connection,
+                    source,
+                    file.Length,
+                    fileProgress,
+                    cancellationToken);
+
+                transferredBytes += file.Length;
+
+                progress?.Report(
+                    transferredBytes);
+            }
         }
 
         await WorldTransferProtocol.SendMessageAsync(
@@ -189,8 +228,7 @@ public sealed class WorldHubTransferService
                 connection,
                 cancellationToken);
 
-        if (response !=
-            WorldTransferProtocol.TransferAccepted)
+        if (response != WorldTransferProtocol.TransferAccepted)
         {
             throw new InvalidOperationException(
                 $"Remote WorldHub rejected the transfer: {response}");
@@ -493,96 +531,126 @@ public sealed class WorldHubTransferService
                 connection,
                 cancellationToken);
 
-        var metadata =
-            await WorldTransferProtocol.ReceiveJsonAsync<
-                SnapshotTransferMetadata>(
-                connection,
-                cancellationToken);
-
         if (request.WorldId == Guid.Empty ||
-            request.SnapshotId <= 0 ||
-            metadata.WorldId != request.WorldId ||
-            metadata.SnapshotId != request.SnapshotId)
+            request.SnapshotCount is < 1 or > 3)
         {
             throw new InvalidDataException(
-                "Invalid push request or transfer metadata.");
+                "Invalid push request.");
         }
 
-        var temporaryDirectory =
+        var receivedSnapshots =
+            new List<ReceivedSnapshot>(
+                request.SnapshotCount);
+
+        var temporaryRoot =
             Path.Combine(
                 _receivedWorldsRootPath,
                 $"push-{Guid.NewGuid():N}");
 
-        Directory.CreateDirectory(
-            temporaryDirectory);
+        Directory.CreateDirectory(temporaryRoot);
 
         try
         {
-            long receivedBytes = 0;
-
             for (var index = 0;
-                 index < metadata.FileCount;
+                 index < request.SnapshotCount;
                  index++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var fileMetadata =
+                var metadata =
                     await WorldTransferProtocol.ReceiveJsonAsync<
-                        SnapshotFileMetadata>(
+                        SnapshotTransferMetadata>(
                         connection,
                         cancellationToken);
 
-                var relativePath =
-                    ValidateRelativePath(
-                        fileMetadata.RelativePath);
-
-                if (fileMetadata.Length < 0)
+                if (metadata.WorldId != request.WorldId ||
+                    metadata.SnapshotId <= 0 ||
+                    metadata.SnapshotVersion <= 0 ||
+                    string.IsNullOrWhiteSpace(metadata.WorldName))
                 {
                     throw new InvalidDataException(
-                        "Received file has an invalid length.");
+                        "Invalid snapshot transfer metadata.");
                 }
 
-                var targetFile =
+                var snapshotDirectory =
                     Path.Combine(
-                        temporaryDirectory,
-                        relativePath);
+                        temporaryRoot,
+                        $"snapshot-{metadata.SnapshotVersion}");
 
-                var targetDirectory =
-                    Path.GetDirectoryName(targetFile);
+                Directory.CreateDirectory(snapshotDirectory);
 
-                if (string.IsNullOrWhiteSpace(targetDirectory))
+                long receivedBytes = 0;
+
+                for (var fileIndex = 0;
+                     fileIndex < metadata.FileCount;
+                     fileIndex++)
                 {
-                    throw new InvalidDataException(
-                        "Invalid received file path.");
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var fileMetadata =
+                        await WorldTransferProtocol.ReceiveJsonAsync<
+                            SnapshotFileMetadata>(
+                            connection,
+                            cancellationToken);
+
+                    var relativePath =
+                        ValidateRelativePath(
+                            fileMetadata.RelativePath);
+
+                    if (fileMetadata.Length < 0)
+                    {
+                        throw new InvalidDataException(
+                            "Received file has an invalid length.");
+                    }
+
+                    var targetFile =
+                        Path.Combine(
+                            snapshotDirectory,
+                            relativePath);
+
+                    var targetDirectory =
+                        Path.GetDirectoryName(targetFile);
+
+                    if (string.IsNullOrWhiteSpace(targetDirectory))
+                    {
+                        throw new InvalidDataException(
+                            "Invalid received file path.");
+                    }
+
+                    Directory.CreateDirectory(
+                        targetDirectory);
+
+                    await using var destination =
+                        new FileStream(
+                            targetFile,
+                            FileMode.CreateNew,
+                            FileAccess.Write,
+                            FileShare.None,
+                            64 * 1024,
+                            useAsync: true);
+
+                    await WorldTransferProtocol.ReceiveFileAsync(
+                        connection,
+                        destination,
+                        fileMetadata.Length,
+                        cancellationToken: cancellationToken);
+
+                    receivedBytes += fileMetadata.Length;
                 }
 
-                Directory.CreateDirectory(
-                    targetDirectory);
+                if (receivedBytes != metadata.TotalBytes)
+                {
+                    throw new InvalidDataException(
+                        $"Push size mismatch for snapshot " +
+                        $"'{metadata.SnapshotId}'. " +
+                        $"Expected {metadata.TotalBytes} bytes, " +
+                        $"received {receivedBytes} bytes.");
+                }
 
-                await using var destination =
-                    new FileStream(
-                        targetFile,
-                        FileMode.CreateNew,
-                        FileAccess.Write,
-                        FileShare.None,
-                        64 * 1024,
-                        useAsync: true);
-
-                await WorldTransferProtocol.ReceiveFileAsync(
-                    connection,
-                    destination,
-                    fileMetadata.Length,
-                    cancellationToken: cancellationToken);
-
-                receivedBytes += fileMetadata.Length;
-            }
-
-            if (receivedBytes != metadata.TotalBytes)
-            {
-                throw new InvalidDataException(
-                    $"Push size mismatch. " +
-                    $"Expected {metadata.TotalBytes} bytes, " +
-                    $"received {receivedBytes} bytes.");
+                receivedSnapshots.Add(
+                    new ReceivedSnapshot(
+                        metadata,
+                        snapshotDirectory));
             }
 
             var completedMessage =
@@ -598,6 +666,27 @@ public sealed class WorldHubTransferService
                     $"'{completedMessage}'.");
             }
 
+            if (receivedSnapshots.Count != request.SnapshotCount)
+            {
+                throw new InvalidDataException(
+                    "Received snapshot count does not match the push request.");
+            }
+
+            var firstMetadata =
+                receivedSnapshots[0].Metadata;
+
+            if (receivedSnapshots.Any(
+                    snapshot =>
+                        snapshot.Metadata.WorldId != request.WorldId ||
+                        !string.Equals(
+                            snapshot.Metadata.WorldName,
+                            firstMetadata.WorldName,
+                            StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new InvalidDataException(
+                    "Received snapshots belong to different worlds.");
+            }
+
             var worlds =
                 await _worldService.GetAllAsync(
                     cancellationToken);
@@ -605,12 +694,15 @@ public sealed class WorldHubTransferService
             var world =
                 worlds.FirstOrDefault(
                     candidate =>
+                        candidate.RemoteWorldId == request.WorldId);
+
+            world ??=
+                worlds.FirstOrDefault(
+                    candidate =>
                         string.Equals(
                             candidate.Name,
-                            metadata.WorldName,
+                            firstMetadata.WorldName,
                             StringComparison.OrdinalIgnoreCase));
-
-            string snapshotSourcePath;
 
             if (world is null)
             {
@@ -618,137 +710,128 @@ public sealed class WorldHubTransferService
                     Path.Combine(
                         _receivedWorldsRootPath,
                         SanitizeWorldName(
-                            metadata.WorldName));
+                            firstMetadata.WorldName));
 
                 localPath =
                     EnsureUniqueDirectoryPath(
                         localPath);
 
-                Directory.Move(
-                    temporaryDirectory,
-                    localPath);
-
-                temporaryDirectory = string.Empty;
-
                 world =
                     await _worldService.CreateAsync(
-                        metadata.WorldName,
+                        firstMetadata.WorldName,
                         localPath,
-                        metadata.MinecraftVersion,
-                        metadata.Loader,
-                        metadata.LoaderVersion,
-                        metadata.ModpackHash,
+                        firstMetadata.MinecraftVersion,
+                        firstMetadata.Loader,
+                        firstMetadata.LoaderVersion,
+                        firstMetadata.ModpackHash,
                         cancellationToken);
 
-                snapshotSourcePath = localPath;
+                world.RemoteWorldId =
+                    request.WorldId;
+
+                await _worldService.UpdateAsync(
+                    world,
+                    cancellationToken);
             }
             else
             {
-                var stagingWorld =
-                    Path.Combine(
-                        _receivedWorldsRootPath,
-                        $"staging-{Guid.NewGuid():N}");
+                world.RemoteWorldId =
+                    request.WorldId;
 
-                Directory.Move(
-                    temporaryDirectory,
-                    stagingWorld);
-
-                temporaryDirectory = string.Empty;
-
-                try
+                if (!string.Equals(
+                        world.Name,
+                        firstMetadata.WorldName,
+                        StringComparison.Ordinal))
                 {
-                    snapshotSourcePath = stagingWorld;
-
-                    if (IsTemporaryReceivedWorldPath(
-                            world.LocalPath))
-                    {
-                        await ReplaceDirectoryAsync(
-                            stagingWorld,
-                            world.LocalPath,
-                            cancellationToken);
-
-                        Directory.Delete(
-                            stagingWorld,
-                            recursive: true);
-
-                        snapshotSourcePath = world.LocalPath;
-
-                        world.UpdatedAt = DateTime.UtcNow;
-
-                        await _worldService.UpdateAsync(
-                            world,
-                            cancellationToken);
-                    }
-
-                    var importedSnapshot =
-                        new Snapshot
-                        {
-                            Id = metadata.SnapshotId,
-                            WorldId = world.Id,
-                            Version = metadata.SnapshotVersion,
-                            ParentSnapshotId = null,
-                            AuthorId = _localPlayerId,
-                            Message = metadata.Message,
-                            WorldHash = metadata.WorldHash,
-                            StoragePath = string.Empty,
-                            CreatedAt = metadata.CreatedAt
-                        };
-
-                    await _snapshotService.ImportAsync(
-                        world,
-                        importedSnapshot,
-                        snapshotSourcePath,
-                        cancellationToken);
-
-                    DebugConsole.Log(
-                        $"Push imported. " +
-                        $"World='{world.Name}', " +
-                        $"snapshot={metadata.SnapshotId}, " +
-                        $"version={metadata.SnapshotVersion}.");
-                }
-                finally
-                {
-                    if (Directory.Exists(stagingWorld))
-                    {
-                        Directory.Delete(
-                            stagingWorld,
-                            recursive: true);
-                    }
+                    world.Name =
+                        firstMetadata.WorldName;
                 }
 
-                await WorldTransferProtocol.SendMessageAsync(
-                    connection,
-                    WorldTransferProtocol.TransferAccepted,
+                world.MinecraftVersion =
+                    firstMetadata.MinecraftVersion;
+
+                world.Loader =
+                    firstMetadata.Loader;
+
+                world.LoaderVersion =
+                    firstMetadata.LoaderVersion;
+
+                world.ModpackHash =
+                    firstMetadata.ModpackHash;
+
+                await _worldService.UpdateAsync(
+                    world,
                     cancellationToken);
-
-                return;
             }
 
-            var newWorldSnapshot =
-                new Snapshot
-                {
-                    Id = metadata.SnapshotId,
-                    WorldId = world.Id,
-                    Version = metadata.SnapshotVersion,
-                    ParentSnapshotId = null,
-                    AuthorId = _localPlayerId,
-                    Message = metadata.Message,
-                    WorldHash = metadata.WorldHash,
-                    StoragePath = string.Empty,
-                    CreatedAt = metadata.CreatedAt
-                };
+            var latestReceived =
+                receivedSnapshots
+                    .OrderByDescending(
+                        snapshot =>
+                            snapshot.Metadata.SnapshotVersion)
+                    .First();
 
-            await _snapshotService.ImportAsync(
+            if (!string.Equals(
+                    Path.GetFullPath(world.LocalPath),
+                    Path.GetFullPath(latestReceived.SourcePath),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                await ReplaceDirectoryAsync(
+                    latestReceived.SourcePath,
+                    world.LocalPath,
+                    cancellationToken);
+            }
+
+            await _snapshotService.DeleteByWorldIdAsync(
+                world.Id,
+                cancellationToken);
+
+            foreach (var receivedSnapshot in receivedSnapshots
+                         .OrderBy(
+                             snapshot =>
+                                 snapshot.Metadata.SnapshotVersion))
+            {
+                var metadata =
+                    receivedSnapshot.Metadata;
+
+                var importedSnapshot =
+                    new Snapshot
+                    {
+                        Id = metadata.SnapshotId,
+                        WorldId = world.Id,
+                        Version = metadata.SnapshotVersion,
+                        ParentSnapshotId = metadata.ParentSnapshotId,
+                        AuthorId = metadata.AuthorId,
+                        Message = metadata.Message,
+                        WorldHash = metadata.WorldHash,
+                        StoragePath = string.Empty,
+                        CreatedAt = metadata.CreatedAt
+                    };
+
+                await _snapshotService.ImportAsync(
+                    world,
+                    importedSnapshot,
+                    receivedSnapshot.SourcePath,
+                    cancellationToken);
+            }
+
+            world.CurrentSnapshotId =
+                latestReceived.Metadata.SnapshotId;
+
+            world.UpdatedAt =
+                DateTime.UtcNow;
+
+            await _worldService.UpdateAsync(
                 world,
-                newWorldSnapshot,
-                snapshotSourcePath,
                 cancellationToken);
 
             DebugConsole.Log(
                 $"Push imported. " +
                 $"World='{world.Name}', " +
-                $"snapshot={metadata.SnapshotId}, " +
-                $"version={metadata.SnapshotVersion}.");
+                $"remoteWorld={request.WorldId}, " +
+                $"snapshots={receivedSnapshots.Count}, " +
+                $"current={latestReceived.Metadata.SnapshotId}, " +
+                $"version={latestReceived.Metadata.SnapshotVersion}.");
 
             await WorldTransferProtocol.SendMessageAsync(
                 connection,
@@ -757,11 +840,10 @@ public sealed class WorldHubTransferService
         }
         finally
         {
-            if (!string.IsNullOrWhiteSpace(temporaryDirectory) &&
-                Directory.Exists(temporaryDirectory))
+            if (Directory.Exists(temporaryRoot))
             {
                 Directory.Delete(
-                    temporaryDirectory,
+                    temporaryRoot,
                     recursive: true);
             }
         }
@@ -839,12 +921,13 @@ public sealed class WorldHubTransferService
                 world.ModpackHash,
                 snapshot.Id,
                 snapshot.Version,
+                snapshot.ParentSnapshotId,
+                snapshot.AuthorId,
                 snapshot.WorldHash,
                 snapshot.Message,
                 snapshot.CreatedAt,
                 totalBytes,
-                files.Count),
-            cancellationToken);
+                files.Count));
 
         foreach (var file in files)
         {
@@ -1212,4 +1295,11 @@ public sealed class WorldHubTransferService
         string FullPath,
         string RelativePath,
         long Length);
+    private sealed record SnapshotTransfer(
+        Snapshot Snapshot,
+        List<TransferFile> Files,
+        long TotalBytes);
+    private sealed record ReceivedSnapshot(
+        SnapshotTransferMetadata Metadata,
+        string SourcePath);
 }

@@ -5,6 +5,7 @@ namespace WorldHub.Core.Entities;
 public sealed class World
 {
     public Guid Id { get; init; }
+    public Guid? RemoteWorldId { get; set; }
 
     public required string Name { get; set; }
 

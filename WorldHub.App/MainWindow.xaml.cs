@@ -46,10 +46,13 @@ public partial class MainWindow
 
         ConnectionPage.Initialize(_worldHubNetworkService);
 
+        var appVersionService = new AppVersionService();
+
         SettingsPage.Initialize(
             _worldDeletionService,
             _worlds,
-            RefreshDataAsync);
+            RefreshDataAsync,
+            appVersionService);
 
         DebugConsole.Log(
             "Application services initialized.");

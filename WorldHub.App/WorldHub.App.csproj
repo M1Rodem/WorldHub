@@ -1,22 +1,30 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <UseWPF>true</UseWPF>
+  	<OutputType>WinExe</OutputType>
+  	<TargetFramework>net10.0-windows</TargetFramework>
+  	<Nullable>enable</Nullable>
+  	<ImplicitUsings>enable</ImplicitUsings>
+  	<UseWPF>true</UseWPF>
+  	<Version>0.2.1</Version>
+
+	<ApplicationIcon>Assets\WorldHub.ico</ApplicationIcon>
   </PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Microsoft-WindowsAPICodePack-Shell" Version="1.1.5" />
-  </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="Microsoft-WindowsAPICodePack-Shell" Version="1.1.5" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Resource Include="Assets\WorldHub.ico" />
+	</ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\WorldHub.Core\WorldHub.Core.csproj" />
     <ProjectReference Include="..\WorldHub.Infrastructure\WorldHub.Infrastructure.csproj" />
     <ProjectReference Include="..\WorldHub.Network\WorldHub.Network.csproj" />
     <ProjectReference Include="..\WorldHub.Sync\WorldHub.Sync.csproj" />
+    <ProjectReference Include="..\WorldHub.Updater\WorldHub.Updater.csproj" />
   </ItemGroup>
 
 </Project>

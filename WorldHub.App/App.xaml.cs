@@ -36,11 +36,11 @@ public partial class App : Application
         DebugConsole.Log(
             $"WorldHub ports: network={networkPort}, mod={modPort}");
 
-        var dataPath = Path.Combine(
-            Environment.GetFolderPath(
-                Environment.SpecialFolder.LocalApplicationData),
-            "WorldHub",
-            "data");
+        var appSettingsService =
+            new AppSettingsService();
+
+        var dataPath =
+            appSettingsService.GetDataPath();
 
         var worldsPath = Path.Combine(
             dataPath,

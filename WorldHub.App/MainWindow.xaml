@@ -7,7 +7,8 @@
         Height="750"
         MinWidth="1000"
         MinHeight="650"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen"
+        Icon="/WorldHub.App;component/Assets/WorldHub.ico">
 
     <Window.Resources>
 
