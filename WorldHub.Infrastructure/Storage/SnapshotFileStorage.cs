@@ -63,6 +63,62 @@ public sealed class SnapshotFileStorage : ISnapshotStorage
         }
     }
 
+    public async Task<string> ImportAsync(
+        World world,
+        Snapshot snapshot,
+        string sourcePath,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
+
+        if (!Directory.Exists(sourcePath))
+        {
+            throw new DirectoryNotFoundException(
+                $"Snapshot source directory was not found: {sourcePath}");
+        }
+
+        var sourceDirectory = Path.GetFullPath(sourcePath);
+
+        var worldDirectory = Path.Combine(
+            _snapshotsRootPath,
+            world.Id.ToString());
+
+        var snapshotDirectory = Path.Combine(
+            worldDirectory,
+            snapshot.Id.ToString());
+
+        if (Directory.Exists(snapshotDirectory))
+        {
+            throw new IOException(
+                $"Snapshot directory already exists: {snapshotDirectory}");
+        }
+
+        Directory.CreateDirectory(worldDirectory);
+
+        try
+        {
+            await CopyDirectoryAsync(
+                sourceDirectory,
+                snapshotDirectory,
+                cancellationToken);
+
+            return snapshotDirectory;
+        }
+        catch
+        {
+            if (Directory.Exists(snapshotDirectory))
+            {
+                Directory.Delete(
+                    snapshotDirectory,
+                    recursive: true);
+            }
+
+            throw;
+        }
+    }
+
     public Task RestoreAsync(
         Snapshot snapshot,
         string targetPath,

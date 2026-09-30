@@ -485,8 +485,8 @@ public sealed class WorldHubTransferService
     }
 
     private async Task HandlePushAsync(
-        NetworkConnection connection,
-        CancellationToken cancellationToken)
+    NetworkConnection connection,
+    CancellationToken cancellationToken)
     {
         var request =
             await WorldTransferProtocol.ReceiveJsonAsync<PushRequest>(
@@ -610,6 +610,8 @@ public sealed class WorldHubTransferService
                             metadata.WorldName,
                             StringComparison.OrdinalIgnoreCase));
 
+            string snapshotSourcePath;
+
             if (world is null)
             {
                 var localPath =
@@ -638,11 +640,7 @@ public sealed class WorldHubTransferService
                         metadata.ModpackHash,
                         cancellationToken);
 
-                await _snapshotService.CreateAsync(
-                    world,
-                    _localPlayerId,
-                    $"Received from WorldHub: {metadata.Message}",
-                    cancellationToken);
+                snapshotSourcePath = localPath;
             }
             else
             {
@@ -659,6 +657,8 @@ public sealed class WorldHubTransferService
 
                 try
                 {
+                    snapshotSourcePath = stagingWorld;
+
                     if (IsTemporaryReceivedWorldPath(
                             world.LocalPath))
                     {
@@ -671,25 +671,40 @@ public sealed class WorldHubTransferService
                             stagingWorld,
                             recursive: true);
 
+                        snapshotSourcePath = world.LocalPath;
+
                         world.UpdatedAt = DateTime.UtcNow;
 
                         await _worldService.UpdateAsync(
                             world,
                             cancellationToken);
                     }
-                    else
-                    {
-                        var snapshotWorld =
-                            CreateTemporaryWorld(
-                                world,
-                                stagingWorld);
 
-                        await _snapshotService.CreateAsync(
-                            snapshotWorld,
-                            _localPlayerId,
-                            $"Received from WorldHub: {metadata.Message}",
-                            cancellationToken);
-                    }
+                    var importedSnapshot =
+                        new Snapshot
+                        {
+                            Id = metadata.SnapshotId,
+                            WorldId = world.Id,
+                            Version = metadata.SnapshotVersion,
+                            ParentSnapshotId = null,
+                            AuthorId = _localPlayerId,
+                            Message = metadata.Message,
+                            WorldHash = metadata.WorldHash,
+                            StoragePath = string.Empty,
+                            CreatedAt = metadata.CreatedAt
+                        };
+
+                    await _snapshotService.ImportAsync(
+                        world,
+                        importedSnapshot,
+                        snapshotSourcePath,
+                        cancellationToken);
+
+                    DebugConsole.Log(
+                        $"Push imported. " +
+                        $"World='{world.Name}', " +
+                        $"snapshot={metadata.SnapshotId}, " +
+                        $"version={metadata.SnapshotVersion}.");
                 }
                 finally
                 {
@@ -700,7 +715,40 @@ public sealed class WorldHubTransferService
                             recursive: true);
                     }
                 }
+
+                await WorldTransferProtocol.SendMessageAsync(
+                    connection,
+                    WorldTransferProtocol.TransferAccepted,
+                    cancellationToken);
+
+                return;
             }
+
+            var newWorldSnapshot =
+                new Snapshot
+                {
+                    Id = metadata.SnapshotId,
+                    WorldId = world.Id,
+                    Version = metadata.SnapshotVersion,
+                    ParentSnapshotId = null,
+                    AuthorId = _localPlayerId,
+                    Message = metadata.Message,
+                    WorldHash = metadata.WorldHash,
+                    StoragePath = string.Empty,
+                    CreatedAt = metadata.CreatedAt
+                };
+
+            await _snapshotService.ImportAsync(
+                world,
+                newWorldSnapshot,
+                snapshotSourcePath,
+                cancellationToken);
+
+            DebugConsole.Log(
+                $"Push imported. " +
+                $"World='{world.Name}', " +
+                $"snapshot={metadata.SnapshotId}, " +
+                $"version={metadata.SnapshotVersion}.");
 
             await WorldTransferProtocol.SendMessageAsync(
                 connection,

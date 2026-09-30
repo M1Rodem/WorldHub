@@ -179,6 +179,108 @@ public sealed class SnapshotService
 
         return snapshot;
     }
+    public async Task<Snapshot> ImportAsync(
+    World world,
+    Snapshot snapshot,
+    string sourcePath,
+    CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
+
+        if (snapshot.Id <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(snapshot),
+                "Snapshot ID must be greater than zero.");
+        }
+
+        if (snapshot.Version <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(snapshot),
+                "Snapshot version must be greater than zero.");
+        }
+
+        if (snapshot.WorldId != world.Id)
+        {
+            throw new InvalidOperationException(
+                "Snapshot belongs to another world.");
+        }
+
+        if (string.IsNullOrWhiteSpace(snapshot.WorldHash))
+        {
+            throw new ArgumentException(
+                "Snapshot world hash cannot be empty.",
+                nameof(snapshot));
+        }
+
+        if (!Directory.Exists(sourcePath))
+        {
+            throw new DirectoryNotFoundException(
+                $"Snapshot source directory was not found: {sourcePath}");
+        }
+
+        var existingSnapshot =
+            await _snapshotRepository.GetByIdAsync(
+                snapshot.Id,
+                cancellationToken);
+
+        if (existingSnapshot is not null)
+        {
+            throw new InvalidOperationException(
+                $"Snapshot with ID '{snapshot.Id}' already exists.");
+        }
+
+        var storagePath =
+            await _snapshotStorage.ImportAsync(
+                world,
+                snapshot,
+                sourcePath,
+                cancellationToken);
+
+        var importedSnapshot = new Snapshot
+        {
+            Id = snapshot.Id,
+            WorldId = snapshot.WorldId,
+            Version = snapshot.Version,
+            ParentSnapshotId = snapshot.ParentSnapshotId,
+            AuthorId = snapshot.AuthorId,
+            Message = snapshot.Message,
+            WorldHash = snapshot.WorldHash,
+            StoragePath = storagePath,
+            CreatedAt = snapshot.CreatedAt
+        };
+
+        try
+        {
+            await _snapshotRepository.AddAsync(
+                importedSnapshot,
+                cancellationToken);
+
+            world.CurrentSnapshotId = importedSnapshot.Id;
+            world.UpdatedAt = DateTime.UtcNow;
+
+            await _worldRepository.UpdateAsync(
+                world,
+                cancellationToken);
+
+            await CleanupOldSnapshotsAsync(
+                world.Id,
+                cancellationToken);
+
+            return importedSnapshot;
+        }
+        catch
+        {
+            await _snapshotStorage.DeleteAsync(
+                importedSnapshot,
+                CancellationToken.None);
+
+            throw;
+        }
+    }
     private static long GenerateSnapshotId()
     {
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();

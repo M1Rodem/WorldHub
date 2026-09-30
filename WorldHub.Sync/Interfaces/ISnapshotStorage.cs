@@ -9,6 +9,12 @@ public interface ISnapshotStorage
         Snapshot snapshot,
         CancellationToken cancellationToken = default);
 
+    Task<string> ImportAsync(
+        World world,
+        Snapshot snapshot,
+        string sourcePath,
+        CancellationToken cancellationToken = default);
+
     Task RestoreAsync(
         Snapshot snapshot,
         string targetPath,
