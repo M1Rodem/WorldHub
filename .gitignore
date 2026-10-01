@@ -46,3 +46,14 @@ desktop.ini
 # WorldHub release artifacts
 /publish/
 /release/
+
+# WorldHub release
+/artifacts/
+/release/
+/publish/
+/updater-publish/
+
+# Diagnostics
+hosttrace.txt
+crash.txt
+startup-error.txt

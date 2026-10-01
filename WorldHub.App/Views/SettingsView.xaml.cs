@@ -614,13 +614,79 @@ public partial class SettingsView : UserControl
         }
     }
 
-    private void UpdateButton_Click(
-        object sender,
-        RoutedEventArgs e)
+    private async void UpdateButton_Click(
+    object sender,
+    RoutedEventArgs e)
     {
-        DialogWindow.ShowInformation(
-            Window.GetWindow(this)!,
-            "WorldHub",
-            "Установка обновления будет подключена следующим этапом.");
+        if (_appVersionService is null ||
+            _updaterProcessService is null)
+        {
+            DialogWindow.ShowError(
+                Window.GetWindow(this)!,
+                "Ошибка",
+                "Сервис обновлений ещё не инициализирован.");
+
+            return;
+        }
+
+
+        if (!_updateAvailable)
+        {
+            DialogWindow.ShowInformation(
+                Window.GetWindow(this)!,
+                "WorldHub",
+                "Доступных обновлений нет.");
+
+            return;
+        }
+
+
+        try
+        {
+            UpdateButton.IsEnabled = false;
+            CheckUpdateButton.IsEnabled = false;
+
+
+            var owner =
+                Window.GetWindow(this);
+
+
+            if (owner is null)
+            {
+                return;
+            }
+
+
+            if (!DialogWindow.ShowConfirmation(
+                    owner,
+                    "Обновление WorldHub",
+                    $"Установить новую версию {_latestVersion}?\n\n" +
+                    "WorldHub будет закрыт и запущен снова после обновления."))
+            {
+                return;
+            }
+
+
+            var currentVersion =
+                _appVersionService.GetVersion();
+
+
+            _updaterProcessService.StartUpdate(
+                currentVersion);
+
+
+            Application.Current.Shutdown();
+        }
+        catch (Exception exception)
+        {
+            UpdateButton.IsEnabled = true;
+            CheckUpdateButton.IsEnabled = true;
+
+
+            DialogWindow.ShowError(
+                Window.GetWindow(this)!,
+                "Ошибка обновления",
+                exception.Message);
+        }
     }
 }

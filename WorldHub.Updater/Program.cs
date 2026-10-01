@@ -32,6 +32,40 @@ internal static class Program
                     currentVersion);
             }
 
+            if (args.Length > 0 &&
+                string.Equals(
+                    args[0],
+                    "--update",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                var parser = new UpdateArgumentsParser();
+
+                var arguments =
+                    parser.Parse(args);
+
+
+                var downloader =
+                    new UpdateDownloader(
+                        httpClient);
+
+
+                var installer =
+                    new UpdateInstaller();
+
+
+                var updateRunner =
+                    new UpdateRunner(
+                        releaseClient,
+                        downloader,
+                        installer);
+
+
+                await updateRunner.RunAsync(
+                    arguments);
+
+                return 0;
+            }
+
             throw new ArgumentException(
                 "Unknown updater command.");
         }

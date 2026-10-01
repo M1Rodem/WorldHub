@@ -20,6 +20,12 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         DebugConsole.Initialize();
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+        {
+            File.WriteAllText(
+                "startup-error.txt",
+                args.ExceptionObject.ToString());
+        };
         DebugConsole.Log("WorldHub starting...");
         base.OnStartup(e);
 

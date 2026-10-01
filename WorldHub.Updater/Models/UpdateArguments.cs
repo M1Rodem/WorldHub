@@ -2,4 +2,5 @@
 
 public sealed record UpdateArguments(
     string ApplicationPath,
-    string PackagePath);
+    string CurrentVersion,
+    int ProcessId);

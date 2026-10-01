@@ -1,4 +1,9 @@
 <Solution>
+  <Folder Name="/Элементы решения/">
+    <File Path="Build-Release.ps1" />
+    <File Path="Directory.Build.props" />
+    <File Path="Version.props" />
+  </Folder>
   <Project Path="WorldHub.App/WorldHub.App.csproj" />
   <Project Path="WorldHub.Core/WorldHub.Core.csproj" />
   <Project Path="WorldHub.Infrastructure/WorldHub.Infrastructure.csproj" />

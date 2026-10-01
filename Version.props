@@ -1,0 +1,22 @@
+﻿<Project>
+
+  <PropertyGroup>
+
+    <WorldHubVersion>0.2.1</WorldHubVersion>
+
+    <Version>$(WorldHubVersion)</Version>
+
+    <AssemblyVersion>$(WorldHubVersion).0</AssemblyVersion>
+
+    <FileVersion>$(WorldHubVersion).0</FileVersion>
+
+    <InformationalVersion>$(WorldHubVersion)</InformationalVersion>
+
+  </PropertyGroup>
+
+</Project>
+
+
+
+
+

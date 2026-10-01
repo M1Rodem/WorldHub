@@ -8,18 +8,47 @@ public sealed class UpdateArgumentsParser
     {
         ArgumentNullException.ThrowIfNull(args);
 
-        var applicationPath = GetRequiredValue(
-            args,
-            "--app");
 
-        var packagePath = GetRequiredValue(
-            args,
-            "--package");
+        var applicationPath =
+            GetRequiredValue(
+                args,
+                "--app");
+
+
+        var currentVersion =
+            GetRequiredValue(
+                args,
+                "--version");
+
+
+        var processIdText =
+            GetRequiredValue(
+                args,
+                "--pid");
+
+
+        if (!int.TryParse(
+                processIdText,
+                out var processId))
+        {
+            throw new ArgumentException(
+                "Process ID must be a valid number.");
+        }
+
+
+        if (processId <= 0)
+        {
+            throw new ArgumentException(
+                "Process ID must be greater than zero.");
+        }
+
 
         return new UpdateArguments(
             applicationPath,
-            packagePath);
+            currentVersion,
+            processId);
     }
+
 
     private static string GetRequiredValue(
         IReadOnlyList<string> args,
@@ -35,13 +64,16 @@ public sealed class UpdateArgumentsParser
                 continue;
             }
 
+
             var value = args[index + 1];
+
 
             if (!string.IsNullOrWhiteSpace(value))
             {
                 return value;
             }
         }
+
 
         throw new ArgumentException(
             $"Required argument '{argumentName}' was not provided.");
