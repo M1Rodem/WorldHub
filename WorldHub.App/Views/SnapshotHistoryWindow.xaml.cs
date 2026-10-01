@@ -92,11 +92,10 @@ public partial class SnapshotHistoryWindow : Window
             DebugConsole.Error(
                 $"Failed to load snapshot history: {exception}");
 
-            MessageBox.Show(
-                exception.Message,
+            DialogWindow.ShowError(
+                this,
                 "Ошибка загрузки истории",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+                exception.Message);
         }
     }
 }

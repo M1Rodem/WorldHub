@@ -1,5 +1,6 @@
 ﻿using System.Windows;
 using WorldHub.App.ViewModels;
+using WorldHub.App.Views;
 using WorldHub.Core.Entities;
 
 namespace WorldHub.App.Services;
@@ -17,18 +18,13 @@ public static class SnapshotRestoreHelper
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(snapshotAppService);
 
-        var result =
-            MessageBox.Show(
-                owner,
-                $"Восстановить {snapshot.VersionText}?\n\n" +
-                $"Дата: {snapshot.CreatedText}\n" +
-                $"Hash: {snapshot.ShortHash}\n\n" +
-                "Текущее состояние мира будет заменено выбранной версией.",
-                "Восстановление мира",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
-
-        if (result != MessageBoxResult.Yes)
+        if (!DialogWindow.ShowConfirmation(
+            owner,
+            "Восстановление мира",
+            $"Восстановить {snapshot.VersionText}?\n\n" +
+            $"Дата: {snapshot.CreatedText}\n" +
+            $"Hash: {snapshot.ShortHash}\n\n" +
+            "Текущее состояние мира будет заменено выбранной версией."))
         {
             return false;
         }
@@ -45,12 +41,10 @@ public static class SnapshotRestoreHelper
             DebugConsole.Log(
                 $"Snapshot #{snapshot.Version} restored successfully.");
 
-            MessageBox.Show(
+            DialogWindow.ShowInformation(
                 owner,
-                $"Мир восстановлен из {snapshot.VersionText}.",
                 "Восстановление завершено",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+                $"Мир восстановлен из {snapshot.VersionText}.");
 
             return true;
         }
@@ -59,12 +53,10 @@ public static class SnapshotRestoreHelper
             DebugConsole.Error(
                 $"Failed to restore snapshot #{snapshot.Version}: {exception}");
 
-            MessageBox.Show(
+            DialogWindow.ShowError(
                 owner,
-                exception.Message,
                 "Ошибка восстановления",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+                exception.Message);
 
             return false;
         }

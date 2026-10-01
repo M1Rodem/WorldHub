@@ -29,6 +29,7 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <!-- HEADER -->
@@ -39,24 +40,24 @@
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- ERROR ICON -->
-                <Border Width="42"
+                <Border x:Name="IconBorder"
+                        Width="42"
                         Height="42"
-                        Background="#3A1820"
-                        BorderBrush="#8F3043"
+                        Background="#182A43"
+                        BorderBrush="#304C72"
                         BorderThickness="1"
                         CornerRadius="21"
                         VerticalAlignment="Top">
 
-                    <TextBlock Text="!"
+                    <TextBlock x:Name="IconText"
+                               Text="!"
                                FontSize="23"
                                FontWeight="Bold"
-                               Foreground="#FF6B81"
+                               Foreground="#8FA8D8"
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center"/>
                 </Border>
 
-                <!-- TITLE -->
                 <TextBlock x:Name="TitleText"
                            Grid.Column="1"
                            Margin="14,2,0,0"
@@ -77,84 +78,196 @@
                        Foreground="#A9B7CC"
                        TextWrapping="Wrap"/>
 
-            <!-- BUTTON -->
-            <Button Grid.Row="2"
-                    Width="110"
-                    Height="38"
-                    Margin="0,24,0,0"
-                    HorizontalAlignment="Right"
-                    Content="Понятно"
-                    Click="OkButton_Click">
+            <!-- PATHS -->
+            <StackPanel x:Name="PathPanel"
+                        Grid.Row="2"
+                        Margin="66,18,0,0"
+                        Visibility="Collapsed">
 
-                <Button.Style>
-                    <Style TargetType="Button">
+                <TextBlock Text="Откуда"
+                           FontSize="12"
+                           Foreground="#71809A"/>
 
-                        <Setter Property="Background"
-                                Value="#18263F"/>
+                <TextBlock x:Name="FromPathText"
+                           Margin="0,4,0,12"
+                           FontSize="12"
+                           Foreground="#A9B7CC"
+                           TextWrapping="Wrap"/>
 
-                        <Setter Property="Foreground"
-                                Value="#E8EEF8"/>
+                <TextBlock Text="Куда"
+                           FontSize="12"
+                           Foreground="#71809A"/>
 
-                        <Setter Property="BorderBrush"
-                                Value="#304563"/>
+                <TextBlock x:Name="ToPathText"
+                           Margin="0,4,0,0"
+                           FontSize="12"
+                           Foreground="#A9B7CC"
+                           TextWrapping="Wrap"/>
 
-                        <Setter Property="BorderThickness"
-                                Value="1"/>
+            </StackPanel>
 
-                        <Setter Property="FontSize"
-                                Value="13"/>
+            <!-- BUTTONS -->
+            <StackPanel x:Name="ButtonsPanel"
+                        Grid.Row="3"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Margin="0,24,0,0">
 
-                        <Setter Property="Cursor"
-                                Value="Hand"/>
+                <Button x:Name="SecondaryButton"
+                        Width="110"
+                        Height="38"
+                        Margin="0,0,10,0"
+                        Content="Отмена"
+                        Visibility="Collapsed"
+                        Click="SecondaryButton_Click">
 
-                        <Setter Property="Template">
+                    <Button.Style>
+                        <Style TargetType="Button">
 
-                            <Setter.Value>
-                                <ControlTemplate TargetType="Button">
+                            <Setter Property="Background"
+                                    Value="#18263F"/>
 
-                                    <Border Background="{TemplateBinding Background}"
-                                            BorderBrush="{TemplateBinding BorderBrush}"
-                                            BorderThickness="{TemplateBinding BorderThickness}"
-                                            CornerRadius="8">
+                            <Setter Property="Foreground"
+                                    Value="#E8EEF8"/>
 
-                                        <ContentPresenter
-                                            HorizontalAlignment="Center"
-                                            VerticalAlignment="Center"/>
+                            <Setter Property="BorderBrush"
+                                    Value="#304563"/>
 
-                                    </Border>
+                            <Setter Property="BorderThickness"
+                                    Value="1"/>
 
-                                    <ControlTemplate.Triggers>
+                            <Setter Property="FontSize"
+                                    Value="13"/>
 
-                                        <Trigger Property="IsMouseOver"
-                                                 Value="True">
+                            <Setter Property="Cursor"
+                                    Value="Hand"/>
 
-                                            <Setter Property="Background"
-                                                    Value="#213452"/>
+                            <Setter Property="Template">
 
-                                            <Setter Property="BorderBrush"
-                                                    Value="#3B567A"/>
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
 
-                                        </Trigger>
+                                        <Border Background="{TemplateBinding Background}"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                CornerRadius="8">
 
-                                        <Trigger Property="IsPressed"
-                                                 Value="True">
+                                            <ContentPresenter
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Center"/>
 
-                                            <Setter Property="Background"
-                                                    Value="#142239"/>
+                                        </Border>
 
-                                        </Trigger>
+                                        <ControlTemplate.Triggers>
 
-                                    </ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver"
+                                                     Value="True">
 
-                                </ControlTemplate>
-                            </Setter.Value>
+                                                <Setter Property="Background"
+                                                        Value="#213452"/>
 
-                        </Setter>
+                                                <Setter Property="BorderBrush"
+                                                        Value="#3B567A"/>
 
-                    </Style>
-                </Button.Style>
+                                            </Trigger>
 
-            </Button>
+                                            <Trigger Property="IsPressed"
+                                                     Value="True">
+
+                                                <Setter Property="Background"
+                                                        Value="#142239"/>
+
+                                            </Trigger>
+
+                                        </ControlTemplate.Triggers>
+
+                                    </ControlTemplate>
+                                </Setter.Value>
+
+                            </Setter>
+
+                        </Style>
+                    </Button.Style>
+
+                </Button>
+
+                <Button x:Name="PrimaryButton"
+                        Width="110"
+                        Height="38"
+                        Content="Понятно"
+                        Click="PrimaryButton_Click">
+
+                    <Button.Style>
+                        <Style TargetType="Button">
+
+                            <Setter Property="Background"
+                                    Value="#18263F"/>
+
+                            <Setter Property="Foreground"
+                                    Value="#E8EEF8"/>
+
+                            <Setter Property="BorderBrush"
+                                    Value="#304563"/>
+
+                            <Setter Property="BorderThickness"
+                                    Value="1"/>
+
+                            <Setter Property="FontSize"
+                                    Value="13"/>
+
+                            <Setter Property="Cursor"
+                                    Value="Hand"/>
+
+                            <Setter Property="Template">
+
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+
+                                        <Border Background="{TemplateBinding Background}"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                CornerRadius="8">
+
+                                            <ContentPresenter
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Center"/>
+
+                                        </Border>
+
+                                        <ControlTemplate.Triggers>
+
+                                            <Trigger Property="IsMouseOver"
+                                                     Value="True">
+
+                                                <Setter Property="Background"
+                                                        Value="#213452"/>
+
+                                                <Setter Property="BorderBrush"
+                                                        Value="#3B567A"/>
+
+                                            </Trigger>
+
+                                            <Trigger Property="IsPressed"
+                                                     Value="True">
+
+                                                <Setter Property="Background"
+                                                        Value="#142239"/>
+
+                                            </Trigger>
+
+                                        </ControlTemplate.Triggers>
+
+                                    </ControlTemplate>
+                                </Setter.Value>
+
+                            </Setter>
+
+                        </Style>
+                    </Button.Style>
+
+                </Button>
+
+            </StackPanel>
 
         </Grid>
 

@@ -131,7 +131,8 @@ public partial class App : Application
             worldDeletionService,
             localPlayerIdentity,
             _worldHubNetworkService,
-            worldHubTransferService);
+            worldHubTransferService,
+            dataPath);
 
         MainWindow = mainWindow;
 

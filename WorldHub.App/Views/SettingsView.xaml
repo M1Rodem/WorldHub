@@ -69,11 +69,53 @@
                 </StackPanel>
             </Border>
             <!-- OTHER SETTINGS -->
-            <Border Margin="0,20,0,0" Padding="24" Background="#101A2D" BorderBrush="#1D2A42" BorderThickness="1" CornerRadius="12">
+            <!-- OTHER SETTINGS -->
+            <Border Margin="0,20,0,0"
+        Padding="24"
+        Background="#101A2D"
+        BorderBrush="#1D2A42"
+        BorderThickness="1"
+        CornerRadius="12">
                 <StackPanel>
-                    <TextBlock Text="Общие настройки" FontSize="20" FontWeight="SemiBold" Foreground="White"/>
-                    <TextBlock Text="Дополнительные настройки WorldHub будут доступны здесь." Margin="0,6,0,0" FontSize="13" Foreground="#71809A"/>
+                    <TextBlock Text="Общие настройки"
+                   FontSize="20"
+                   FontWeight="SemiBold"
+                   Foreground="White"/>
+
+                    <TextBlock Text="Настройки хранения локальных данных WorldHub."
+                   Margin="0,6,0,20"
+                   FontSize="13"
+                   Foreground="#71809A"/>
+
+                    <TextBlock Text="Папка данных"
+                   FontSize="14"
+                   FontWeight="SemiBold"
+                   Foreground="White"/>
+
+                    <TextBlock x:Name="DataPathText"
+                   Margin="0,5,0,12"
+                   FontSize="12"
+                   Foreground="#A9B7CC"
+                   TextWrapping="Wrap"/>
+
+                    <StackPanel Orientation="Horizontal">
+                        <Button x:Name="ChangeDataPathButton"
+                            Content="Изменить папку"
+                            Width="150"
+                            Height="36"
+                            HorizontalAlignment="Left"
+                            Click="ChangeDataPathButton_Click"/>
+
+                        <Button x:Name="ResetDataPathButton"
+                            Content="Сбросить"
+                            Width="110"
+                            Height="36"
+                            Margin="10,0,0,0"
+                            HorizontalAlignment="Left"
+                            Click="ResetDataPathButton_Click"/>
+                    </StackPanel>
                 </StackPanel>
+
             </Border>
             <!-- ABOUT -->
             <Border Margin="0,20,0,0"

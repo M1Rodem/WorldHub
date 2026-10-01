@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows;
 using WorldHub.App.Services;
 using WorldHub.App.ViewModels;
+using WorldHub.App.Views;
 using WorldHub.Sync.Services;
 
 namespace WorldHub.App;
@@ -17,19 +18,22 @@ public partial class MainWindow
     private readonly LocalPlayerIdentity _localPlayerIdentity;
     private readonly WorldHubNetworkService _worldHubNetworkService;
     private readonly WorldHubTransferService _worldHubTransferService;
+    private readonly string _dataPath;
     public MainWindow(
         WorldAppService worldAppService,
         SnapshotAppService snapshotAppService,
         WorldDeletionService worldDeletionService,
         LocalPlayerIdentity localPlayerIdentity,
         WorldHubNetworkService worldHubNetworkService,
-        WorldHubTransferService worldHubTransferService)
+        WorldHubTransferService worldHubTransferService,
+        string dataPath)
     {
         ArgumentNullException.ThrowIfNull(worldAppService);
         ArgumentNullException.ThrowIfNull(snapshotAppService);
         ArgumentNullException.ThrowIfNull(worldDeletionService);
         ArgumentNullException.ThrowIfNull(localPlayerIdentity);
         ArgumentNullException.ThrowIfNull(worldHubNetworkService);
+        ArgumentException.ThrowIfNullOrWhiteSpace(dataPath);
 
         DebugConsole.Log("Creating MainWindow...");
 
@@ -43,16 +47,19 @@ public partial class MainWindow
         _localPlayerIdentity = localPlayerIdentity;
         _worldHubNetworkService = worldHubNetworkService;
         _worldHubTransferService = worldHubTransferService;
+        _dataPath = Path.GetFullPath(dataPath);
 
         ConnectionPage.Initialize(_worldHubNetworkService);
 
         var appVersionService = new AppVersionService();
+        var appSettingsService = new AppSettingsService();
 
         SettingsPage.Initialize(
             _worldDeletionService,
             _worlds,
             RefreshDataAsync,
-            appVersionService);
+            appVersionService,
+            appSettingsService);
 
         DebugConsole.Log(
             "Application services initialized.");
@@ -96,11 +103,10 @@ public partial class MainWindow
             DebugConsole.Error(
                 $"Failed to load snapshot history: {exception}");
 
-            MessageBox.Show(
-                exception.Message,
+            DialogWindow.ShowError(
+                this,
                 "Ошибка загрузки истории",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+                exception.Message);
         }
     }
 
@@ -262,13 +268,12 @@ public partial class MainWindow
             DebugConsole.Log(
                 $"Snapshot #{snapshot.Version} created successfully.");
 
-            MessageBox.Show(
+            DialogWindow.ShowInformation(
+                this,
+                "Snapshot создан",
                 $"Создан {snapshot.VersionText}\n\n" +
                 $"Hash: {snapshot.ShortHash}\n" +
-                $"Дата: {snapshot.CreatedText}",
-                "Snapshot создан",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+                $"Дата: {snapshot.CreatedText}");
 
             await LoadWorldsAsync();
         }
@@ -277,11 +282,10 @@ public partial class MainWindow
             DebugConsole.Error(
                 $"Failed to create snapshot: {exception}");
 
-            MessageBox.Show(
-                exception.Message,
+            DialogWindow.ShowError(
+                this,
                 "Ошибка создания snapshot",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+                exception.Message);
         }
     }
 
@@ -338,11 +342,10 @@ public partial class MainWindow
             DebugConsole.Error(
                 $"Failed to open snapshot history: {exception}");
 
-            MessageBox.Show(
-                exception.Message,
+            DialogWindow.ShowError(
+                this,
                 "Ошибка открытия истории",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+                exception.Message);
         }
     }
 
@@ -379,11 +382,10 @@ public partial class MainWindow
             DebugConsole.Error(
                 $"Failed to load worlds: {exception}");
 
-            MessageBox.Show(
-                exception.Message,
+            DialogWindow.ShowError(
+                this,
                 "Ошибка загрузки миров",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+                exception.Message);
         }
     }
 
@@ -418,11 +420,10 @@ public partial class MainWindow
             DebugConsole.Error(
                 $"Selected directory does not exist: {worldPath}");
 
-            MessageBox.Show(
-                "Выбранная папка не существует.",
+            DialogWindow.ShowError(
+                this,
                 "Ошибка",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+                "Выбранная папка не существует.");
 
             return;
         }
@@ -468,12 +469,10 @@ public partial class MainWindow
             DebugConsole.Error(
                 $"Failed to add world: {exception}");
 
-            var errorDialog = new Views.DialogWindow(
+            DialogWindow.ShowError(
+                this,
                 "Не удалось добавить мир",
-                exception.Message,
-                this);
-
-            errorDialog.ShowDialog();
+                exception.Message);
         }
     }
 
@@ -513,37 +512,6 @@ public partial class MainWindow
             "World list refreshed.");
     }
 
-    private void PlayWorldButton_Click(
-    object sender,
-    RoutedEventArgs e)
-    {
-        if (sender is not FrameworkElement element)
-        {
-            DebugConsole.Error(
-                "Play button sender is invalid.");
-
-            return;
-        }
-
-        if (element.DataContext is not WorldViewModel worldViewModel)
-        {
-            DebugConsole.Error(
-                "Play button has no WorldViewModel.");
-
-            return;
-        }
-
-        DebugConsole.Log(
-            $"Play requested for world: {worldViewModel.Name}");
-
-        MessageBox.Show(
-            $"Запуск мира:\n\n{worldViewModel.Name}\n\n" +
-            "Интеграция с Minecraft будет добавлена позже.",
-            "Играть",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
-    }
-
     private async void PushWorldButton_Click(
     object sender,
     RoutedEventArgs e)
@@ -562,12 +530,11 @@ public partial class MainWindow
                 out var host,
                 out var port))
         {
-            MessageBox.Show(
-                "Сначала укажите IP-адрес и порт другого WorldHub " +
-                "на странице подключения.",
+            DialogWindow.ShowWarning(
+                this,
                 "Отправка мира",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
+                "Сначала укажите IP-адрес и порт другого WorldHub " +
+                "на странице подключения.");
 
             return;
         }
@@ -578,23 +545,21 @@ public partial class MainWindow
 
         if (world is null)
         {
-            MessageBox.Show(
-                "Мир не найден.",
+            DialogWindow.ShowError(
+                this,
                 "Отправка мира",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+                "Мир не найден.");
 
             return;
         }
 
         if (world.CurrentSnapshotId <= 0)
         {
-            MessageBox.Show(
-                $"У мира «{world.Name}» нет snapshot.\n\n" +
-                "Сначала создайте snapshot.",
+            DialogWindow.ShowWarning(
+                this,
                 "Отправка мира",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
+                $"У мира «{world.Name}» нет snapshot.\n\n" +
+                "Сначала создайте snapshot.");
 
             return;
         }
@@ -618,12 +583,11 @@ public partial class MainWindow
                 port,
                 progress);
 
-            MessageBox.Show(
-                $"Мир «{world.Name}» успешно отправлен.\n\n" +
-                $"Получатель: {host}:{port}",
+            DialogWindow.ShowInformation(
+                this,
                 "Отправка завершена",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+                $"Мир «{world.Name}» успешно отправлен.\n\n" +
+                $"Получатель: {host}:{port}");
 
             DebugConsole.Log(
                 $"Push completed: {world.Name} -> {host}:{port}");
@@ -638,11 +602,10 @@ public partial class MainWindow
             DebugConsole.Error(
                 $"Push failed for world '{world.Name}': {exception}");
 
-            MessageBox.Show(
-                $"Не удалось отправить мир.\n\n{exception.Message}",
+            DialogWindow.ShowError(
+                this,
                 "Ошибка отправки",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+                $"Не удалось отправить мир.\n\n{exception.Message}");
         }
     }
 
@@ -698,11 +661,10 @@ public partial class MainWindow
             DebugConsole.Error(
                 $"Failed to prepare snapshot restore: {exception}");
 
-            MessageBox.Show(
-                exception.Message,
+            DialogWindow.ShowError(
+                this,
                 "Ошибка восстановления",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+                exception.Message);
         }
     }
 
@@ -730,12 +692,11 @@ public partial class MainWindow
                 out var host,
                 out var port))
         {
-            MessageBox.Show(
-                "Сначала укажите IP-адрес и порт другого WorldHub " +
-                "на странице подключения.",
+            DialogWindow.ShowWarning(
+                this,
                 "Получение мира",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
+                "Сначала укажите IP-адрес и порт другого WorldHub " +
+                "на странице подключения.");
 
             return;
         }
@@ -746,11 +707,10 @@ public partial class MainWindow
 
         if (world is null)
         {
-            MessageBox.Show(
-                "Мир не найден.",
+            DialogWindow.ShowError(
+                this,
                 "Получение мира",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+                "Мир не найден.");
 
             return;
         }
@@ -759,10 +719,7 @@ public partial class MainWindow
 
         var receivedWorldsRoot =
             Path.Combine(
-                Environment.GetFolderPath(
-                    Environment.SpecialFolder.LocalApplicationData),
-                "WorldHub",
-                "data",
+                _dataPath,
                 "received-worlds");
 
         var isTemporaryWorld =
@@ -818,11 +775,10 @@ public partial class MainWindow
             await LoadHistoryAsync();
             await LoadWorldsAsync();
 
-            MessageBox.Show(
-                $"Мир «{world.Name}» успешно получен.",
+            DialogWindow.ShowInformation(
+                this,
                 "Получение завершено",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+                $"Мир «{world.Name}» успешно получен.");
 
             DebugConsole.Log(
                 $"Pull completed: {world.Name} <- {host}:{port}");
@@ -837,17 +793,16 @@ public partial class MainWindow
             DebugConsole.Error(
                 $"Pull failed for world '{world.Name}': {exception}");
 
-            MessageBox.Show(
-                $"Не удалось получить мир.\n\n{exception.Message}",
+            DialogWindow.ShowError(
+                this,
                 "Ошибка получения",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+                $"Не удалось получить мир.\n\n{exception.Message}");
         }
     }
 
     private async void DeleteWorldButton_Click(
-    object sender,
-    RoutedEventArgs e)
+        object sender,
+        RoutedEventArgs e)
     {
         if (sender is not FrameworkElement element)
         {
@@ -865,18 +820,14 @@ public partial class MainWindow
             return;
         }
 
-        var result =
-            MessageBox.Show(
-                $"Удалить мир «{worldViewModel.Name}» из WorldHub?\n\n" +
-                "Все snapshots, история и связь WorldHub с этим миром будут удалены.\n\n" +
-                "Физический мир Minecraft НЕ будет удалён.\n" +
-                "Папка мира в Minecraft\\saves останется без изменений.\n\n" +
-                "Это действие нельзя отменить.",
-                "Удаление мира из WorldHub",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
-
-        if (result != MessageBoxResult.Yes)
+        if (!DialogWindow.ShowConfirmation(
+            this,
+            "Удаление мира из WorldHub",
+            $"Удалить мир «{worldViewModel.Name}» из WorldHub?\n\n" +
+            "Все snapshots, история и связь WorldHub с этим миром будут удалены.\n\n" +
+            "Физический мир Minecraft НЕ будет удалён.\n" +
+            "Папка мира в Minecraft\\saves останется без изменений.\n\n" +
+            "Это действие нельзя отменить."))
         {
             return;
         }
@@ -902,23 +853,21 @@ public partial class MainWindow
             DebugConsole.Log(
                 $"World deleted from WorldHub: {worldViewModel.Name}");
 
-            MessageBox.Show(
-                $"Мир «{worldViewModel.Name}» удалён из WorldHub.\n\n" +
-                "Физический мир Minecraft сохранён.",
+            DialogWindow.ShowInformation(
+                this,
                 "Мир удалён",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+                $"Мир «{worldViewModel.Name}» удалён из WorldHub.\n\n" +
+                "Физический мир Minecraft сохранён.");
         }
         catch (Exception exception)
         {
             DebugConsole.Error(
                 $"Failed to delete world '{worldViewModel.Name}': {exception}");
 
-            MessageBox.Show(
-                exception.Message,
+            DialogWindow.ShowError(
+                this,
                 "Ошибка удаления мира",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+                exception.Message);
         }
     }
 
