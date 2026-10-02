@@ -1,5 +1,5 @@
 ﻿using WorldHub.Core.Entities;
-using WorldHub.Sync.Interfaces;
+using WorldHub.Core.Interfaces;
 
 namespace WorldHub.Infrastructure.Storage;
 

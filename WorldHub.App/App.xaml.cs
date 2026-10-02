@@ -1,11 +1,18 @@
 ﻿using System.IO;
 using System.Windows;
-using WorldHub.App.Services;
-using WorldHub.Infrastructure.FileSystem;
+using WorldHub.App.Services.Diagnostics;
+using WorldHub.App.Services.Identity;
+using WorldHub.App.Services.Network;
+using WorldHub.App.Services.Settings;
+using WorldHub.App.Views.Main;
+using WorldHub.App.Services.Application;
+using WorldHub.Sync.Hashing;
 using WorldHub.Infrastructure.Storage;
-using WorldHub.Sync.Services;
+using WorldHub.Network.Minecraft;
 using WorldHub.Network.Providers;
 using WorldHub.Network.Services;
+using WorldHub.Sync.Services;
+using WorldHub.Sync.Transfer;
 
 namespace WorldHub.App;
 
@@ -14,7 +21,7 @@ public partial class App : Application
     private const int DefaultNetworkPort = 27072;
     private const int DefaultModPort = 27071;
 
-    private WorldHubTcpListener? _worldHubTcpListener;
+    private MinecraftBridgeListener? _minecraftBridgeListener;
     private WorldHubNetworkService? _worldHubNetworkService;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -114,19 +121,26 @@ public partial class App : Application
                 dataPath,
                 "received-worlds");
 
-        var worldHubTransferService =
-            new WorldHubTransferService(
+        var snapshotTransferService =
+            new SnapshotTransferService(
+                snapshotRepository,
+                snapshotService,
+                worldRepository);
+
+        var worldTransferOrchestrator =
+            new WorldTransferOrchestrator(
                 networkService,
                 snapshotRepository,
                 worldService,
                 snapshotService,
+                snapshotTransferService,
                 receivedWorldsPath,
                 localPlayerIdentity.PlayerId);
 
         _worldHubNetworkService =
             new WorldHubNetworkService(
                 networkService,
-                worldHubTransferService,
+                worldTransferOrchestrator,
                 networkPort);
 
         _worldHubNetworkService.Start();
@@ -137,7 +151,7 @@ public partial class App : Application
             worldDeletionService,
             localPlayerIdentity,
             _worldHubNetworkService,
-            worldHubTransferService,
+            worldTransferOrchestrator,
             dataPath);
 
         MainWindow = mainWindow;
@@ -149,12 +163,14 @@ public partial class App : Application
                 localPlayerIdentity,
                 mainWindow.RefreshDataAsync);
 
-        _worldHubTcpListener =
-            new WorldHubTcpListener(
-                worldHubSessionService,
-                modPort);
+        _minecraftBridgeListener =
+            new MinecraftBridgeListener(
+                modPort,
+                message => worldHubSessionService.HandleSessionEndedAsync(message),
+                DebugConsole.Log,
+                DebugConsole.Error);
 
-        _worldHubTcpListener.Start();
+        _minecraftBridgeListener.Start();
 
         DebugConsole.Log(
             "WorldHub TCP bridge started.");
@@ -170,8 +186,8 @@ public partial class App : Application
         DebugConsole.Log(
             "WorldHub shutting down...");
 
-        _worldHubTcpListener?.Dispose();
-        _worldHubTcpListener = null;
+        _minecraftBridgeListener?.Dispose();
+        _minecraftBridgeListener = null;
 
         _worldHubNetworkService?.Dispose();
         _worldHubNetworkService = null;

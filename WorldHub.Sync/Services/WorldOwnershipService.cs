@@ -1,6 +1,7 @@
 ﻿using WorldHub.Core.Entities;
 using WorldHub.Core.Enums;
 using WorldHub.Core.Interfaces;
+using WorldHub.Core.Rules;
 
 namespace WorldHub.Sync.Services;
 
@@ -106,19 +107,13 @@ public sealed class WorldOwnershipService
             worldId,
             cancellationToken);
 
-        if (ownership is null)
-        {
-            throw new InvalidOperationException(
-                "World does not have an active owner.");
-        }
-
-        if (ownership.PlayerId != playerId)
+        if (!OwnershipReleaseRule.CanRelease(ownership, playerId))
         {
             throw new InvalidOperationException(
                 "Only the current owner can release world ownership.");
         }
 
-        ownership.Status = OwnershipStatus.Released;
+        ownership!.Status = OwnershipStatus.Released;
         ownership.ReleasedAt = DateTime.UtcNow;
 
         await _repository.UpdateAsync(

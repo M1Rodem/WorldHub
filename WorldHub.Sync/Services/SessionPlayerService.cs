@@ -1,6 +1,7 @@
 ﻿using WorldHub.Core.Entities;
 using WorldHub.Core.Enums;
 using WorldHub.Core.Interfaces;
+using WorldHub.Core.Rules;
 
 namespace WorldHub.Sync.Services;
 
@@ -121,10 +122,11 @@ public sealed class SessionPlayerService
                 sessionId,
                 cancellationToken);
 
-        if (players.Count >= 2)
+        if (SessionMaxPlayersRule.IsFull(players.Count))
         {
             throw new InvalidOperationException(
-                "The MVP session supports a maximum of two players.");
+                $"The MVP session supports a maximum of " +
+                $"{SessionMaxPlayersRule.MaxPlayers} players.");
         }
 
         var player = new SessionPlayer

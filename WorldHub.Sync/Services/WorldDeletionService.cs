@@ -1,4 +1,5 @@
 ﻿using WorldHub.Core.Interfaces;
+using WorldHub.Core.Rules;
 
 namespace WorldHub.Sync.Services;
 
@@ -40,22 +41,10 @@ public sealed class WorldDeletionService
                 $"World with ID '{worldId}' was not found.");
         }
 
-        if (world.Status == Core.Enums.WorldStatus.Playing)
+        if (!WorldDeletionAllowedRule.IsAllowed(world))
         {
             throw new InvalidOperationException(
-                "A world cannot be deleted while it is being played.");
-        }
-
-        if (world.Status == Core.Enums.WorldStatus.Syncing)
-        {
-            throw new InvalidOperationException(
-                "A world cannot be deleted while it is syncing.");
-        }
-
-        if (world.Status == Core.Enums.WorldStatus.Restoring)
-        {
-            throw new InvalidOperationException(
-                "A world cannot be deleted while it is being restored.");
+                $"A world cannot be deleted while its status is '{world.Status}'.");
         }
 
         // Удаляем физические snapshot-копии и их записи.

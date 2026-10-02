@@ -1,0 +1,202 @@
+﻿<Window x:Class="WorldHub.App.Views.Main.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:viewsWorlds="clr-namespace:WorldHub.App.Views.Worlds"
+        xmlns:viewsHistory="clr-namespace:WorldHub.App.Views.History"
+        xmlns:viewsSettings="clr-namespace:WorldHub.App.Views.Settings"
+        xmlns:viewsConnection="clr-namespace:WorldHub.App.Views.Connection"
+        Title="WorldHub"
+        Width="1200"
+        Height="750"
+        MinWidth="1000"
+        MinHeight="650"
+        WindowStartupLocation="CenterScreen"
+        Icon="/WorldHub.App;component/Assets/WorldHub.ico">
+
+    <Window.Resources>
+
+        <Style TargetType="Button">
+
+            <Setter Property="Background"
+                    Value="#18263F"/>
+
+            <Setter Property="Foreground"
+                    Value="#E8EEF8"/>
+
+            <Setter Property="BorderBrush"
+                    Value="#263957"/>
+
+            <Setter Property="BorderThickness"
+                    Value="1"/>
+
+            <Setter Property="FontSize"
+                    Value="13"/>
+
+            <Setter Property="Cursor"
+                    Value="Hand"/>
+
+            <Setter Property="Padding"
+                    Value="12,0"/>
+
+        </Style>
+
+    </Window.Resources>
+
+    <Grid Background="#0B1220">
+
+        <Grid.ColumnDefinitions>
+
+            <ColumnDefinition Width="240"/>
+
+            <ColumnDefinition Width="*"/>
+
+        </Grid.ColumnDefinitions>
+
+
+        <!-- SIDEBAR -->
+
+        <Border Grid.Column="0"
+                Background="#101A2D"
+                BorderBrush="#1D2A42"
+                BorderThickness="0,0,1,0">
+
+            <Grid Margin="20">
+
+                <Grid.RowDefinitions>
+
+                    <RowDefinition Height="Auto"/>
+
+                    <RowDefinition Height="*"/>
+
+                    <RowDefinition Height="Auto"/>
+
+                </Grid.RowDefinitions>
+
+
+                <StackPanel>
+
+                    <TextBlock Text="WORLDHUB"
+                               FontSize="24"
+                               FontWeight="Bold"
+                               Foreground="White"/>
+
+                    <TextBlock Text="Minecraft Co-op"
+                               Margin="0,4,0,0"
+                               FontSize="12"
+                               Foreground="#71809A"/>
+
+                </StackPanel>
+
+
+                <StackPanel Grid.Row="1"
+                            Margin="0,40,0,0">
+
+                    <Button Content="Мои миры"
+                            Height="46"
+                            Margin="0,0,0,8"
+                            Click="MyWorldsButton_Click"/>
+
+                    <Button Content="Подключение"
+                        Height="46"
+                        Margin="0,0,0,8"
+                        Click="ConnectionNavigationButton_Click"/>
+
+                    <Button Content="История"
+                            Height="46"
+                            Margin="0,0,0,8"
+                            Click="HistoryNavigationButton_Click"/>
+
+                    <Button Content="Настройки"
+                        Height="46"
+                        Click="SettingsNavigationButton_Click"/>
+
+                </StackPanel>
+
+
+                <Border Grid.Row="2"
+                        Padding="12"
+                        Background="#16233A"
+                        CornerRadius="8">
+
+                    <StackPanel>
+
+                        <TextBlock Text="Состояние"
+                                   FontSize="11"
+                                   Foreground="#71809A"/>
+
+                        <StackPanel Orientation="Horizontal"
+                                    Margin="0,5,0,0">
+
+                            <Ellipse Width="8"
+                                     Height="8"
+                                     Fill="#45D483"
+                                     VerticalAlignment="Center"/>
+
+                            <TextBlock Text=" Готов"
+                                       Foreground="#DCE5F5"
+                                       Margin="5,0,0,0"/>
+
+                        </StackPanel>
+
+                    </StackPanel>
+
+                </Border>
+
+            </Grid>
+
+        </Border>
+
+
+        <!-- MAIN -->
+
+        <Grid Grid.Column="1"
+              Margin="32">
+
+            <Grid.RowDefinitions>
+
+                <RowDefinition Height="Auto"/>
+
+                <RowDefinition Height="*"/>
+
+            </Grid.RowDefinitions>
+
+
+            <!-- HEADER -->
+
+            <StackPanel>
+
+                <TextBlock x:Name="PageTitleText"
+                           Text="Мои миры"
+                           FontSize="30"
+                           FontWeight="SemiBold"
+                           Foreground="White"/>
+
+                <TextBlock x:Name="PageDescriptionText"
+                           Text="Управляйте мирами, версиями и подключениями"
+                           Margin="0,6,0,0"
+                           FontSize="14"
+                           Foreground="#71809A"/>
+
+            </StackPanel>
+
+
+            <!-- CONTENT -->
+
+            <Grid Grid.Row="1"
+                Margin="0,30,0,0">
+
+                <viewsWorlds:WorldsView x:Name="WorldsPage"/>
+
+                <viewsHistory:HistoryView x:Name="HistoryPage" Visibility="Collapsed"/>
+
+                <viewsSettings:SettingsView x:Name="SettingsPage" Visibility="Collapsed"/>
+
+                <viewsConnection:ConnectionView x:Name="ConnectionPage" Visibility="Collapsed"/>
+
+            </Grid>
+
+        </Grid>
+
+    </Grid>
+
+</Window>

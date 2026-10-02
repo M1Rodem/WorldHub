@@ -1,6 +1,7 @@
 ﻿using WorldHub.Core.Entities;
 using WorldHub.Core.Enums;
 using WorldHub.Core.Interfaces;
+using WorldHub.Core.Rules;
 
 namespace WorldHub.Sync.Services;
 
@@ -73,22 +74,14 @@ public sealed class SessionService
                 worldId,
                 cancellationToken);
 
-        if (ownership is null)
+        if (!SessionOwnershipRule.CanStartSession(
+            ownership,
+            hostPlayerId,
+            startSnapshotId))
         {
             throw new InvalidOperationException(
-                "World must have an active owner before starting a session.");
-        }
-
-        if (ownership.PlayerId != hostPlayerId)
-        {
-            throw new InvalidOperationException(
-                "Only the current world owner can start the session.");
-        }
-
-        if (ownership.SnapshotId != startSnapshotId)
-        {
-            throw new InvalidOperationException(
-                "Session snapshot does not match the owned world snapshot.");
+                "Only the current world owner can start the session " +
+                "with the owned snapshot.");
         }
 
         var session = new Session

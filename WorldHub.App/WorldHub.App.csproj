@@ -22,7 +22,6 @@
     <ProjectReference Include="..\WorldHub.Infrastructure\WorldHub.Infrastructure.csproj" />
     <ProjectReference Include="..\WorldHub.Network\WorldHub.Network.csproj" />
     <ProjectReference Include="..\WorldHub.Sync\WorldHub.Sync.csproj" />
-    <ProjectReference Include="..\WorldHub.Updater\WorldHub.Updater.csproj" />
   </ItemGroup>
 
 </Project>
