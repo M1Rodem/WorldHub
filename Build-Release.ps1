@@ -1,4 +1,4 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 
 
 function Write-Step(
@@ -12,22 +12,21 @@ function Write-Step(
 }
 
 
-function Invoke-Dotnet(
-    [string[]]$Arguments,
+function Invoke-CommandChecked(
+    [scriptblock]$Command,
     [string]$Description
 )
 {
     Write-Host ""
     Write-Host $Description -ForegroundColor Yellow
 
-    dotnet @Arguments
+    & $Command
 
-    if ($LASTEXITCODE -ne 0)
+    if($LASTEXITCODE -ne 0)
     {
         throw "$Description failed. Exit code: $LASTEXITCODE"
     }
 }
-
 
 
 try
@@ -62,14 +61,32 @@ try
             "updater-publish"
 
 
+    $minecraftPath =
+        Join-Path `
+            $root `
+            "WorldHub.Minecraft"
+
+
+    $installerScript =
+        Join-Path `
+            $root `
+            "WorldHub.iss"
+
+
 
     Write-Step "WORLDHUB RELEASE BUILDER"
 
 
 
-    if (-not (Test-Path $versionFile))
+    if(-not(Test-Path $versionFile))
     {
         throw "Version.props not found."
+    }
+
+
+    if(-not(Test-Path $installerScript))
+    {
+        throw "WorldHub.iss not found."
     }
 
 
@@ -84,26 +101,17 @@ try
 
 
 
-    if ([string]::IsNullOrWhiteSpace($currentVersion))
-    {
-        throw "Current version not found."
-    }
-
-
-
     Write-Host ""
-    Write-Host "Current version: $currentVersion" `
-        -ForegroundColor Green
+    Write-Host "Current version: $currentVersion" -ForegroundColor Green
 
 
 
     $newVersion =
-        Read-Host `
-            "Enter new version"
+        Read-Host "Enter new version"
 
 
 
-    if ($newVersion -notmatch '^\d+\.\d+\.\d+$')
+    if($newVersion -notmatch '^\d+\.\d+\.\d+$')
     {
         throw "Version must be X.Y.Z"
     }
@@ -111,33 +119,22 @@ try
 
 
     Write-Host ""
-
-    Write-Host "Old version:"
-    Write-Host $currentVersion `
-        -ForegroundColor DarkGray
-
-    Write-Host "New version:"
-    Write-Host $newVersion `
-        -ForegroundColor Green
+    Write-Host "Old version: $currentVersion"
+    Write-Host "New version: $newVersion"
 
 
 
     $confirm =
-        Read-Host `
-            "Continue? (y/n)"
+        Read-Host "Continue? (y/n)"
 
 
 
-    if ($confirm -ne "y")
+    if($confirm -ne "y")
     {
         exit 0
     }
 
 
-
-    #
-    # BACKUP VERSION
-    #
 
     $backup =
         "$versionFile.backup"
@@ -154,13 +151,11 @@ try
     try
     {
 
-
         #
         # VERSION
         #
 
-        Write-Step "[1/9] Updating version"
-
+        Write-Step "[1/11] Updating version"
 
 
         $content =
@@ -169,12 +164,10 @@ try
                 -Raw
 
 
-
         $content =
             $content -replace `
             '<WorldHubVersion>.*?</WorldHubVersion>',
             "<WorldHubVersion>$newVersion</WorldHubVersion>"
-
 
 
         Set-Content `
@@ -184,32 +177,21 @@ try
 
 
 
-
-
         #
         # CLEAN
         #
 
-        Write-Step "[2/9] Cleaning"
+        Write-Step "[2/11] Cleaning"
 
 
-
-        Invoke-Dotnet `
-            @(
-                "clean"
-            ) `
-            "dotnet clean"
-
-
-
+        dotnet clean
 
 
         #
-        # PREPARE
+        # FOLDERS
         #
 
-        Write-Step "[3/9] Preparing folders"
-
+        Write-Step "[3/11] Preparing folders"
 
 
         foreach($folder in @(
@@ -227,48 +209,35 @@ try
         }
 
 
+        if(Test-Path $artifactsPath)
+        {
+            Remove-Item `
+                $artifactsPath `
+                -Recurse `
+                -Force
+        }
+
 
         New-Item `
             -ItemType Directory `
-            -Path $releasePath |
+            -Path $artifactsPath |
         Out-Null
 
 
 
-
-
         #
-        # APP PUBLISH
+        # APP
         #
 
-        Write-Step "[4/9] Publishing WorldHub.App"
+        Write-Step "[4/11] Publishing WorldHub.App"
 
 
-
-        Invoke-Dotnet `
-            @(
-                "publish",
-                "$root\WorldHub.App\WorldHub.App.csproj",
-                "-c",
-                "Release",
-                "-r",
-                "win-x64",
-                "--self-contained",
-                "true",
-                "-o",
-                $releasePath
-            ) `
-            "WorldHub.App publish"
-
-
-
-
-
-        #
-        # APP CHECK
-        #
-
-        Write-Step "[5/9] Checking application"
+        dotnet publish `
+            "$root\WorldHub.App\WorldHub.App.csproj" `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -o $releasePath
 
 
 
@@ -278,13 +247,10 @@ try
                 "WorldHub.App.exe"
 
 
-
         if(-not(Test-Path $appExe))
         {
-            throw "WorldHub.App.exe missing."
+            throw "WorldHub.App.exe not found."
         }
-
-
 
 
 
@@ -292,49 +258,22 @@ try
         # UPDATER
         #
 
-        Write-Step "[6/9] Publishing updater"
+        Write-Step "[5/11] Publishing updater"
 
 
-
-        Invoke-Dotnet `
-            @(
-                "publish",
-                "$root\WorldHub.Updater\WorldHub.Updater.csproj",
-                "-c",
-                "Release",
-                "-r",
-                "win-x64",
-                "--self-contained",
-                "true",
-                "-o",
-                $updaterPath
-            ) `
-            "WorldHub.Updater publish"
-
-
-
-
-
-        $updaterExe =
-            Join-Path `
-                $updaterPath `
-                "WorldHub.Updater.exe"
-
-
-
-        if(-not(Test-Path $updaterExe))
-        {
-            throw "WorldHub.Updater.exe missing after publish."
-        }
+        dotnet publish `
+            "$root\WorldHub.Updater\WorldHub.Updater.csproj" `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -o $updaterPath
 
 
 
         Copy-Item `
-            $updaterExe `
+            "$updaterPath\WorldHub.Updater.exe" `
             $releasePath `
             -Force
-
-
 
 
 
@@ -342,44 +281,20 @@ try
         # VERSION CHECK
         #
 
-        Write-Step "[7/9] Checking application version"
+        Write-Step "[6/11] Checking version"
 
 
-
-        $fileInfo =
-            Get-Item $appExe
-
-
-        $appVersion =
-            $fileInfo.VersionInfo.ProductVersion
+        $version =
+            (Get-Item $appExe).VersionInfo.ProductVersion
 
 
-
-        if([string]::IsNullOrWhiteSpace($appVersion))
+        if(-not $version.StartsWith($newVersion))
         {
-            throw "Application version not found."
+            throw "Version mismatch. Expected $newVersion, got $version"
         }
 
 
-
-        if(-not $appVersion.StartsWith(
-            $newVersion,
-            [System.StringComparison]::OrdinalIgnoreCase))
-        {
-            throw (
-                "Application version mismatch. " +
-                "Expected: $newVersion. " +
-                "Actual: $appVersion"
-            )
-        }
-
-
-
-        Write-Host (
-            "Application version OK: {0}" -f $appVersion
-        ) -ForegroundColor Green
-
-
+        Write-Host "Version OK: $version" -ForegroundColor Green
 
 
 
@@ -387,77 +302,145 @@ try
         # SMOKE TEST
         #
 
-        Write-Step "[8/9] Testing application"
+        Write-Step "[7/11] Testing application"
 
 
         $process =
             Start-Process `
-                -FilePath $appExe `
+                $appExe `
                 -WorkingDirectory $releasePath `
                 -PassThru
 
 
-        Start-Sleep -Seconds 5
+        Start-Sleep 5
 
 
         if($process.HasExited)
         {
-            throw (
-                "WorldHub.App exited immediately. " +
-                "ExitCode: $($process.ExitCode)"
-            )
+            throw "Application exited."
         }
-
-
-        Write-Host "Application started successfully." `
-            -ForegroundColor Green
 
 
         Stop-Process `
-            -Id $process.Id `
+            $process.Id `
             -Force
 
 
+
         #
-        # ZIP
+        # PORTABLE
         #
 
-        Write-Step "[9/9] Creating archive"
+        Write-Step "[8/11] Creating portable"
 
 
-
-        if(-not(Test-Path $artifactsPath))
-        {
-            New-Item `
-                -ItemType Directory `
-                -Path $artifactsPath |
-            Out-Null
-        }
-
-
-
-        $zip =
+        $portable =
             Join-Path `
                 $artifactsPath `
-                "WorldHub-v$newVersion-win-x64.zip"
-
-
-
-        if(Test-Path $zip)
-        {
-            Remove-Item `
-                $zip `
-                -Force
-        }
-
+                "WorldHub-portable-v$newVersion.zip"
 
 
         Compress-Archive `
-            -Path "$releasePath\*" `
-            -DestinationPath $zip
+            "$releasePath\*" `
+            $portable
 
 
 
+        #
+        # INSTALLER
+        #
+
+        Write-Step "[9/11] Creating installer"
+
+
+        $iscc =
+            "E:\Inno Setup 7\ISCC.exe"
+
+
+        if(-not(Test-Path $iscc))
+        {
+            throw "Inno Setup compiler not found."
+        }
+
+
+        & $iscc `
+            "/dAppVersion=$newVersion" `
+            $installerScript
+
+
+
+        $installer =
+            Join-Path `
+                $artifactsPath `
+                "WorldHub-Setup-v$newVersion.exe"
+
+
+
+        if(-not(Test-Path $installer))
+        {
+            throw "Installer was not created."
+        }
+
+
+
+        #
+        # MOD
+        #
+
+        Write-Step "[10/11] Building Minecraft mod"
+
+
+        Push-Location $minecraftPath
+
+        .\gradlew.bat clean build
+
+        Pop-Location
+
+
+
+        $jar =
+            Get-ChildItem `
+                "$minecraftPath\build\libs" `
+                -Filter "*.jar" |
+            Where-Object {
+                $_.Name -notlike "*sources*" -and
+                $_.Name -notlike "*dev*"
+            } |
+            Select-Object -First 1
+
+
+
+        if($null -eq $jar)
+        {
+            throw "Minecraft mod jar not found."
+        }
+
+
+
+        Copy-Item `
+            $jar.FullName `
+            $artifactsPath `
+            -Force
+
+
+
+        #
+        # DONE
+        #
+
+        Write-Step "[11/11] RELEASE COMPLETE"
+
+
+        Write-Host ""
+        Write-Host "Version: $newVersion" -ForegroundColor Green
+
+        Write-Host ""
+        Write-Host "Artifacts:"
+        Get-ChildItem `
+            $artifactsPath |
+        ForEach-Object {
+            Write-Host $_.FullName -ForegroundColor Green
+        }
 
 
         Remove-Item `
@@ -465,71 +448,33 @@ try
             -Force `
             -ErrorAction SilentlyContinue
 
-
-
-
-
-        $size =
-            (Get-Item $zip).Length / 1MB
-
-
-
-        Write-Step "RELEASE COMPLETE"
-
-
-
-        Write-Host ""
-        Write-Host "Version:"
-        Write-Host $newVersion `
-            -ForegroundColor Green
-
-        Write-Host ""
-
-        Write-Host "Archive:"
-        Write-Host $zip `
-            -ForegroundColor Green
-
-        Write-Host ""
-
-        Write-Host (
-            "Size: {0:N2} MB" -f $size
-        )
-
     }
     catch
     {
+        if(Test-Path $backup)
+        {
+            Copy-Item `
+                $backup `
+                $versionFile `
+                -Force
+
+            Remove-Item `
+                $backup `
+                -Force
+        }
+
         throw
     }
 
 }
 catch
 {
-    Write-Step "RELEASE FAILED"
-
-
     Write-Host ""
-    Write-Host $_.Exception.Message `
-        -ForegroundColor Red
+    Write-Host "================================" -ForegroundColor Red
+    Write-Host "RELEASE FAILED" -ForegroundColor Red
+    Write-Host "================================" -ForegroundColor Red
 
-
-
-    if(Test-Path "$versionFile.backup")
-    {
-        Copy-Item `
-            "$versionFile.backup" `
-            $versionFile `
-            -Force
-
-
-        Remove-Item `
-            "$versionFile.backup" `
-            -Force
-
-
-        Write-Host ""
-        Write-Host "Version restored."
-    }
-
+    Write-Host $_.Exception.Message -ForegroundColor Red
 
     exit 1
 }
