@@ -5,8 +5,8 @@ namespace WorldHub.Updater.Services;
 
 public sealed class UpdaterCommandRunner
 {
-    private const string WindowsPackagePrefix = "WorldHub-v";
-    private const string WindowsPackageSuffix = "-win-x64.zip";
+    private const string WindowsPackagePrefix = "WorldHub-portable-v";
+    private const string WindowsPackageSuffix = ".zip";
 
     private readonly GitHubReleaseClient _releaseClient;
 

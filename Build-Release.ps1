@@ -17,7 +17,7 @@ function Invoke-CommandChecked(
     [string]$Description
 )
 {
-    Write-Host ""
+    Write-Host """WorldHub-portable-v$newVersion.zip"
     Write-Host $Description -ForegroundColor Yellow
 
     & $Command
@@ -70,7 +70,7 @@ try
     $installerScript =
         Join-Path `
             $root `
-            "WorldHub.iss"
+            ".\Installer\WorldHub.iss"
 
 
 
@@ -337,7 +337,7 @@ try
         $portable =
             Join-Path `
                 $artifactsPath `
-                "WorldHub-portable-v$newVersion.zip"
+                 "WorldHub-portable-v$newVersion.zip"
 
 
         Compress-Archive `
