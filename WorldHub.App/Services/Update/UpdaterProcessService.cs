@@ -67,42 +67,63 @@ public sealed class UpdaterProcessService
                 nameof(currentVersion));
         }
 
-
-        var updaterPath =
-            GetUpdaterPath();
-
+        var updaterPath = GetUpdaterPath();
 
         ValidateUpdater(updaterPath);
-
 
         var applicationDirectory =
             AppContext.BaseDirectory;
 
-
         var processId =
             Environment.ProcessId;
 
+        var temporaryUpdaterPath =
+            CreateTemporaryUpdater(updaterPath);
 
-        var startInfo =
-            CreateStartInfo(updaterPath);
-
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = temporaryUpdaterPath,
+            UseShellExecute = true,
+            Verb = "runas",
+            WorkingDirectory = Path.GetDirectoryName(temporaryUpdaterPath)!
+        };
 
         startInfo.ArgumentList.Add("--update");
 
         startInfo.ArgumentList.Add("--app");
-        startInfo.ArgumentList.Add(
-            applicationDirectory);
+        startInfo.ArgumentList.Add(applicationDirectory);
 
         startInfo.ArgumentList.Add("--version");
-        startInfo.ArgumentList.Add(
-            currentVersion);
+        startInfo.ArgumentList.Add(currentVersion);
 
         startInfo.ArgumentList.Add("--pid");
-        startInfo.ArgumentList.Add(
-            processId.ToString());
-
+        startInfo.ArgumentList.Add(processId.ToString());
 
         return StartProcess(startInfo);
+    }
+
+    private static string CreateTemporaryUpdater(
+    string updaterPath)
+    {
+        var directory =
+            Path.Combine(
+                Path.GetTempPath(),
+                "WorldHubUpdate",
+                Guid.NewGuid().ToString());
+
+        Directory.CreateDirectory(directory);
+
+        var temporaryUpdaterPath =
+            Path.Combine(
+                directory,
+                "WorldHub.Updater.exe");
+
+        File.Copy(
+            updaterPath,
+            temporaryUpdaterPath,
+            overwrite: true);
+
+        return temporaryUpdaterPath;
     }
     private static ProcessStartInfo CreateStartInfo(
         string updaterPath)

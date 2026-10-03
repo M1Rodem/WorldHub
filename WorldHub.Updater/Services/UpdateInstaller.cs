@@ -102,14 +102,15 @@ public sealed class UpdateInstaller
                     applicationDirectory,
                     "WorldHub.App.exe");
 
-
             if (File.Exists(applicationExe))
             {
                 Process.Start(
                     new ProcessStartInfo
                     {
-                        FileName = applicationExe,
-                        WorkingDirectory = applicationDirectory
+                        FileName = "explorer.exe",
+                        Arguments = $"\"{applicationExe}\"",
+                        UseShellExecute = false,
+                        CreateNoWindow = true
                     });
             }
         }
