@@ -119,11 +119,29 @@ public partial class MainWindow
         string worldName,
         int snapshotCount)
     {
-        return await Dispatcher.InvokeAsync(
-            () => DialogWindow.ShowTransferConfirmation(
-                this,
-                worldName,
-                snapshotCount));
+        DebugConsole.Log(
+            $"Incoming transfer confirmation requested. " +
+            $"World='{worldName}', snapshots={snapshotCount}.");
+
+        var result = await Dispatcher.InvokeAsync(
+            () =>
+            {
+                DebugConsole.Log(
+                    "Opening incoming transfer confirmation dialog.");
+
+                var accepted =
+                    DialogWindow.ShowTransferConfirmation(
+                        this,
+                        worldName,
+                        snapshotCount);
+
+                DebugConsole.Log(
+                    $"Incoming transfer confirmation result: {accepted}.");
+
+                return accepted;
+            });
+
+        return result;
     }
 
     private async void HistoryNavigationButton_Click(

@@ -16,7 +16,7 @@ public sealed class WorldTransferOrchestrator
     private readonly WorldTransferSender _sender;
     private readonly WorldTransferReceiver _receiver;
     private Func<string, int, Task<bool>>? _transferConfirmationHandler;
-
+    private Func<Task>? _transferCompletedHandler;
     public WorldTransferOrchestrator(
         NetworkService networkService,
         ISnapshotRepository snapshotRepository,
@@ -84,6 +84,14 @@ public sealed class WorldTransferOrchestrator
         _transferConfirmationHandler = handler;
     }
 
+    public void SetTransferCompletedHandler(
+        Func<Task> handler)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+
+        _transferCompletedHandler = handler;
+    }
+
     public async Task HandleIncomingAsync(
         NetworkConnection connection,
         CancellationToken cancellationToken = default)
@@ -97,6 +105,12 @@ public sealed class WorldTransferOrchestrator
         {
             case WorldTransferProtocol.PushRequest:
                 await _receiver.HandlePushAsync(connection, cancellationToken);
+
+                if (_transferCompletedHandler is not null)
+                {
+                    await _transferCompletedHandler();
+                }
+
                 return;
 
             case WorldTransferProtocol.PullRequest:

@@ -155,7 +155,13 @@ public partial class App : Application
         worldTransferOrchestrator.SetTransferConfirmationHandler(
             mainWindow.ShowIncomingTransferConfirmationAsync);
 
+        worldTransferOrchestrator.SetTransferCompletedHandler(
+            mainWindow.RefreshDataAsync);
+
         _worldHubNetworkService.Start();
+
+
+
 
         mainWindow.Show();
 

@@ -187,6 +187,15 @@ try
         dotnet clean
 
 
+        Write-Host ""
+        Write-Host "Restoring packages for win-x64..." -ForegroundColor Yellow
+
+
+        dotnet restore `
+            "$root\WorldHub.App\WorldHub.App.csproj" `
+            -r win-x64
+
+
         #
         # FOLDERS
         #
