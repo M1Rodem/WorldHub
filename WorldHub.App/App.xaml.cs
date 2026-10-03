@@ -143,8 +143,6 @@ public partial class App : Application
                 worldTransferOrchestrator,
                 networkPort);
 
-        _worldHubNetworkService.Start();
-
         var mainWindow = new MainWindow(
             worldAppService,
             snapshotAppService,
@@ -153,6 +151,13 @@ public partial class App : Application
             _worldHubNetworkService,
             worldTransferOrchestrator,
             dataPath);
+
+        worldTransferOrchestrator.SetTransferConfirmationHandler(
+            mainWindow.ShowIncomingTransferConfirmationAsync);
+
+        _worldHubNetworkService.Start();
+
+        mainWindow.Show();
 
         MainWindow = mainWindow;
 
@@ -177,8 +182,6 @@ public partial class App : Application
 
         DebugConsole.Log(
             "WorldHub UI initialized.");
-
-        mainWindow.Show();
     }
 
     protected override void OnExit(ExitEventArgs e)

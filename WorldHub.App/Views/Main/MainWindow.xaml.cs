@@ -6,8 +6,9 @@ using WorldHub.App.Services.Identity;
 using WorldHub.App.Services.Network;
 using WorldHub.App.Services.Settings;
 using WorldHub.App.Services.Update;
-using WorldHub.Sync.Transfer;
+using WorldHub.App.Views.Dialogs;
 using WorldHub.Sync.Services;
+using WorldHub.Sync.Transfer;
 
 namespace WorldHub.App.Views.Main;
 
@@ -112,6 +113,17 @@ public partial class MainWindow
         PageTitleText.Text = "Подключение";
         PageDescriptionText.Text =
             "Подключение к другому WorldHub по IP-адресу и порту.";
+    }
+
+    public async Task<bool> ShowIncomingTransferConfirmationAsync(
+        string worldName,
+        int snapshotCount)
+    {
+        return await Dispatcher.InvokeAsync(
+            () => DialogWindow.ShowTransferConfirmation(
+                this,
+                worldName,
+                snapshotCount));
     }
 
     private async void HistoryNavigationButton_Click(

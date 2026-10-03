@@ -2,6 +2,7 @@
 
 public sealed record PushRequest(
     Guid WorldId,
+    string WorldName,
     int SnapshotCount);
 
 public sealed record PullRequest(

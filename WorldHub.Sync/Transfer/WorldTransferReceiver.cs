@@ -17,14 +17,16 @@ internal sealed class WorldTransferReceiver
     private readonly SnapshotTransferService _snapshotTransferService;
     private readonly string _receivedWorldsRootPath;
     private readonly Guid _localPlayerId;
+    private readonly Func<string, int, Task<bool>> _confirmTransfer;
 
     public WorldTransferReceiver(
-        NetworkService networkService,
-        WorldService worldService,
-        SnapshotService snapshotService,
-        SnapshotTransferService snapshotTransferService,
-        string receivedWorldsRootPath,
-        Guid localPlayerId)
+    NetworkService networkService,
+    WorldService worldService,
+    SnapshotService snapshotService,
+    SnapshotTransferService snapshotTransferService,
+    string receivedWorldsRootPath,
+    Guid localPlayerId,
+    Func<string, int, Task<bool>> confirmTransfer)
     {
         _networkService = networkService;
         _worldService = worldService;
@@ -32,8 +34,10 @@ internal sealed class WorldTransferReceiver
         _snapshotTransferService = snapshotTransferService;
         _receivedWorldsRootPath = Path.GetFullPath(receivedWorldsRootPath);
         _localPlayerId = localPlayerId;
+        _confirmTransfer = confirmTransfer;
 
         Directory.CreateDirectory(_receivedWorldsRootPath);
+        ArgumentNullException.ThrowIfNull(confirmTransfer);
     }
 
     // ─────────────────────────────────────────────────────────
@@ -125,33 +129,73 @@ internal sealed class WorldTransferReceiver
     // ─────────────────────────────────────────────────────────
 
     public async Task HandlePushAsync(
-        NetworkConnection connection,
-        CancellationToken cancellationToken)
+    NetworkConnection connection,
+    CancellationToken cancellationToken)
     {
         var request = await WorldTransferProtocol
-            .ReceiveJsonAsync<PushRequest>(connection, cancellationToken);
+            .ReceiveJsonAsync<PushRequest>(
+                connection,
+                cancellationToken);
 
         if (request.WorldId == Guid.Empty ||
+            string.IsNullOrWhiteSpace(request.WorldName) ||
             !TransferSnapshotCountRule.IsValid(request.SnapshotCount))
         {
-            throw new InvalidDataException("Invalid push request.");
+            throw new InvalidDataException(
+                "Invalid push request.");
         }
 
-        using var staging = new TransferStagingArea(_receivedWorldsRootPath, "push");
+        var accepted = await _confirmTransfer(
+            request.WorldName,
+            request.SnapshotCount);
 
-        var receivedSnapshots = new List<ReceivedSnapshot>(request.SnapshotCount);
+        if (!accepted)
+        {
+            await WorldTransferProtocol.SendMessageAsync(
+                connection,
+                WorldTransferProtocol.TransferRejected,
+                cancellationToken);
 
-        for (var index = 0; index < request.SnapshotCount; index++)
+            DebugConsole.Log(
+                $"Push rejected by user. " +
+                $"World='{request.WorldName}', " +
+                $"remoteWorld={request.WorldId}.");
+
+            return;
+        }
+
+        await WorldTransferProtocol.SendMessageAsync(
+            connection,
+            WorldTransferProtocol.TransferApproved,
+            cancellationToken);
+
+        using var staging = new TransferStagingArea(
+            _receivedWorldsRootPath,
+            "push");
+
+        var receivedSnapshots =
+            new List<ReceivedSnapshot>(
+                request.SnapshotCount);
+
+        for (var index = 0;
+             index < request.SnapshotCount;
+             index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var metadata = await WorldTransferProtocol
-                .ReceiveJsonAsync<SnapshotTransferMetadata>(connection, cancellationToken);
+            var metadata =
+                await WorldTransferProtocol
+                    .ReceiveJsonAsync<SnapshotTransferMetadata>(
+                        connection,
+                        cancellationToken);
 
-            ValidateMetadata(metadata, request.WorldId);
+            ValidateMetadata(
+                metadata,
+                request.WorldId);
 
-            var snapshotDir = staging.CreateSubdirectory(
-                $"snapshot-{metadata.SnapshotVersion}");
+            var snapshotDir =
+                staging.CreateSubdirectory(
+                    $"snapshot-{metadata.SnapshotVersion}");
 
             await SnapshotFileReceiver.ReceiveFilesAsync(
                 connection,
@@ -162,30 +206,46 @@ internal sealed class WorldTransferReceiver
                 alreadyTransferred: 0,
                 cancellationToken);
 
-            receivedSnapshots.Add(new ReceivedSnapshot(metadata, snapshotDir));
+            receivedSnapshots.Add(
+                new ReceivedSnapshot(
+                    metadata,
+                    snapshotDir));
         }
 
-        var completedMessage = await WorldTransferProtocol.ReceiveMessageAsync(
-            connection, cancellationToken);
+        var completedMessage =
+            await WorldTransferProtocol.ReceiveMessageAsync(
+                connection,
+                cancellationToken);
 
-        if (completedMessage != WorldTransferProtocol.TransferCompleted)
+        if (completedMessage !=
+            WorldTransferProtocol.TransferCompleted)
         {
             throw new InvalidDataException(
-                $"Unexpected push completion message: '{completedMessage}'.");
+                $"Unexpected push completion message: " +
+                $"'{completedMessage}'.");
         }
 
-        if (receivedSnapshots.Count != request.SnapshotCount)
+        if (receivedSnapshots.Count !=
+            request.SnapshotCount)
         {
             throw new InvalidDataException(
-                "Received snapshot count does not match the push request.");
+                "Received snapshot count does not match " +
+                "the push request.");
         }
 
-        ValidateSnapshotsConsistent(receivedSnapshots, request.WorldId);
+        ValidateSnapshotsConsistent(
+            receivedSnapshots,
+            request.WorldId);
 
         var world = await ResolveOrCreateWorldAsync(
-            request.WorldId, receivedSnapshots[0].Metadata, cancellationToken);
+            request.WorldId,
+            receivedSnapshots[0].Metadata,
+            cancellationToken);
 
-        await ImportStagedSnapshotsAsync(world, receivedSnapshots, cancellationToken);
+        await ImportStagedSnapshotsAsync(
+            world,
+            receivedSnapshots,
+            cancellationToken);
 
         DebugConsole.Log(
             $"Push imported. World='{world.Name}', " +
@@ -193,7 +253,9 @@ internal sealed class WorldTransferReceiver
             $"snapshots={receivedSnapshots.Count}.");
 
         await WorldTransferProtocol.SendMessageAsync(
-            connection, WorldTransferProtocol.TransferAccepted, cancellationToken);
+            connection,
+            WorldTransferProtocol.TransferAccepted,
+            cancellationToken);
     }
 
     // ─────────────────────────────────────────────────────────

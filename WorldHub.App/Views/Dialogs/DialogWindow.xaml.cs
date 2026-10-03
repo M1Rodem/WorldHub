@@ -99,6 +99,32 @@ public partial class DialogWindow : Window
         return dialog.ShowDialog() == true;
     }
 
+    public static bool ShowTransferConfirmation(
+        Window owner,
+        string worldName,
+        int snapshotCount)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(worldName);
+
+        var dialog = new DialogWindow(
+            "Вам передали мир",
+            $"Мир «{worldName}» хотят передать вам.\n\n" +
+            $"Будет передано snapshot'ов: {snapshotCount}.",
+            DialogMode.Confirmation,
+            owner);
+
+        dialog.SecondaryButton.Visibility =
+            Visibility.Visible;
+
+        dialog.SecondaryButton.Content =
+            "Отклонить";
+
+        dialog.PrimaryButton.Content =
+            "Принять";
+
+        return dialog.ShowDialog() == true;
+    }
+
     public static void ShowInformation(
         Window owner,
         string title,

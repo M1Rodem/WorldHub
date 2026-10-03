@@ -19,6 +19,7 @@ public static class WorldTransferProtocol
     public const string SnapshotMetadata = "WORLDHUB_SNAPSHOT";
     public const string FileHeader = "WORLDHUB_FILE";
     public const string TransferCompleted = "WORLDHUB_TRANSFER_COMPLETED";
+    public const string TransferApproved = "WORLDHUB_TRANSFER_APPROVED";
     public const string TransferAccepted = "WORLDHUB_TRANSFER_ACCEPTED";
     public const string TransferRejected = "WORLDHUB_TRANSFER_REJECTED";
     public const string TransferError = "WORLDHUB_TRANSFER_ERROR";

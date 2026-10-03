@@ -55,8 +55,28 @@ internal sealed class WorldTransferSender
 
         await WorldTransferProtocol.SendJsonAsync(
             connection,
-            new PushRequest(world.Id, plan.Items.Count),
+            new PushRequest(
+                world.Id,
+                world.Name,
+                plan.Items.Count),
             cancellationToken);
+
+        var approval =
+            await WorldTransferProtocol.ReceiveMessageAsync(
+                connection,
+                cancellationToken);
+
+        if (approval == WorldTransferProtocol.TransferRejected)
+        {
+            throw new InvalidOperationException(
+                "The remote user rejected the world transfer.");
+        }
+
+        if (approval != WorldTransferProtocol.TransferApproved)
+        {
+            throw new InvalidDataException(
+                $"Unexpected transfer approval response: '{approval}'.");
+        }
 
         long transferredBytes = 0;
 
@@ -76,15 +96,19 @@ internal sealed class WorldTransferSender
         }
 
         await WorldTransferProtocol.SendMessageAsync(
-            connection, WorldTransferProtocol.TransferCompleted, cancellationToken);
+            connection,
+            WorldTransferProtocol.TransferCompleted,
+            cancellationToken);
 
-        var response = await WorldTransferProtocol.ReceiveMessageAsync(
-            connection, cancellationToken);
+        var response =
+            await WorldTransferProtocol.ReceiveMessageAsync(
+                connection,
+                cancellationToken);
 
         if (response != WorldTransferProtocol.TransferAccepted)
         {
-            throw new InvalidOperationException(
-                $"Remote WorldHub rejected the transfer: {response}");
+            throw new InvalidDataException(
+                $"Unexpected transfer result: '{response}'.");
         }
     }
 

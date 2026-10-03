@@ -15,6 +15,7 @@ public sealed class WorldTransferOrchestrator
 {
     private readonly WorldTransferSender _sender;
     private readonly WorldTransferReceiver _receiver;
+    private Func<string, int, Task<bool>>? _transferConfirmationHandler;
 
     public WorldTransferOrchestrator(
         NetworkService networkService,
@@ -42,8 +43,23 @@ public sealed class WorldTransferOrchestrator
             networkService, snapshotRepository, worldService, snapshotTransferService);
 
         _receiver = new WorldTransferReceiver(
-            networkService, worldService, snapshotService,
-            snapshotTransferService, receivedWorldsRootPath, localPlayerId);
+            networkService,
+            worldService,
+            snapshotService,
+            snapshotTransferService,
+            receivedWorldsRootPath,
+            localPlayerId,
+            async (worldName, snapshotCount) =>
+            {
+                if (_transferConfirmationHandler is null)
+                {
+                    return false;
+                }
+
+                return await _transferConfirmationHandler(
+                    worldName,
+                    snapshotCount);
+            });
     }
 
     // Публичный API — тот же, что был раньше.
@@ -59,6 +75,14 @@ public sealed class WorldTransferOrchestrator
         IProgress<long>? progress = null,
         CancellationToken cancellationToken = default)
         => _receiver.PullAsync(world, host, port, targetPath, progress, cancellationToken);
+
+    public void SetTransferConfirmationHandler(
+        Func<string, int, Task<bool>> handler)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+
+        _transferConfirmationHandler = handler;
+    }
 
     public async Task HandleIncomingAsync(
         NetworkConnection connection,
