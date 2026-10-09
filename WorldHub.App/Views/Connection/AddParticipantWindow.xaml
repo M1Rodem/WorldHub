@@ -1,0 +1,103 @@
+<Window
+    x:Class="WorldHub.App.Views.Connection.AddParticipantWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Добавить участника"
+    Width="460"
+    Height="270"
+    MinWidth="460"
+    MinHeight="270"
+    WindowStartupLocation="CenterOwner"
+    ResizeMode="NoResize"
+    Background="#0E1117"
+    Foreground="#F2F4F7"
+    ShowInTaskbar="False">
+
+    <Grid Margin="28">
+
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+
+            <TextBlock
+                Text="Добавить участника"
+                FontFamily="Inter"
+                FontSize="20"
+                FontWeight="SemiBold"
+                Foreground="#F2F4F7"/>
+
+            <TextBlock
+                Margin="0,6,0,0"
+                Text="Введите IP-адрес Radmin VPN участника."
+                FontFamily="Inter"
+                FontSize="12"
+                Foreground="#8C95A3"/>
+
+        </StackPanel>
+
+        <StackPanel
+            Grid.Row="1"
+            Margin="0,24,0,0">
+
+            <TextBlock
+                Text="IP-адрес"
+                FontFamily="Inter"
+                FontSize="11"
+                Foreground="#8C95A3"/>
+
+            <TextBox
+                x:Name="IpAddressTextBox"
+                Height="40"
+                Margin="0,7,0,0"
+                Padding="10,0"
+                VerticalContentAlignment="Center"
+                Background="#151922"
+                BorderBrush="#2A303B"
+                BorderThickness="1"
+                Foreground="#F2F4F7"
+                FontFamily="Inter"
+                FontSize="13"/>
+
+            <TextBlock
+                x:Name="ErrorText"
+                Margin="0,8,0,0"
+                FontFamily="Inter"
+                FontSize="11"
+                Foreground="#E56B6F"
+                Visibility="Collapsed"/>
+
+        </StackPanel>
+
+        <StackPanel
+            Grid.Row="2"
+            Orientation="Horizontal"
+            HorizontalAlignment="Right">
+
+            <Button
+                Width="100"
+                Height="36"
+                Margin="0,0,8,0"
+                Content="Отмена"
+                Background="#1A1F29"
+                BorderBrush="#2A303B"
+                Foreground="#F2F4F7"
+                Click="CancelButton_Click"/>
+
+            <Button
+                Width="120"
+                Height="36"
+                Content="Добавить"
+                Background="#4C8DFF"
+                BorderBrush="#4C8DFF"
+                Foreground="White"
+                Click="AddButton_Click"/>
+
+        </StackPanel>
+
+    </Grid>
+
+</Window>

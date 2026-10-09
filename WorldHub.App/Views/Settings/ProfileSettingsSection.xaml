@@ -1,0 +1,221 @@
+<UserControl
+    x:Class="WorldHub.App.Views.Settings.ProfileSettingsSection"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:svgc="http://sharpvectors.codeplex.com/svgc/"
+    Background="Transparent">
+
+    <Border
+        Padding="22"
+        Background="#151922"
+        BorderBrush="#2A303B"
+        BorderThickness="1"
+        CornerRadius="8">
+
+        <StackPanel>
+
+            <TextBlock
+                Text="Профиль"
+                FontFamily="Inter"
+                FontSize="16"
+                FontWeight="SemiBold"
+                Foreground="#F2F4F7"/>
+
+            <TextBlock
+                Margin="0,5,0,0"
+                Text="Ваш профиль WorldHub"
+                FontFamily="Inter"
+                FontSize="11"
+                Foreground="#8C95A3"/>
+
+            <!-- НИК -->
+            <TextBlock
+                Margin="0,16,0,0"
+                Text="Ник"
+                FontFamily="Inter"
+                FontSize="11"
+                FontWeight="Medium"
+                Foreground="#8C95A3"/>
+
+            <Border
+                Margin="0,7,0,0"
+                Height="42"
+                Background="#1A1F29"
+                BorderBrush="#2A303B"
+                BorderThickness="1"
+                CornerRadius="6">
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="40"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border
+                        Grid.Column="0"
+                        Width="28"
+                        Height="28"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Background="#151922"
+                        CornerRadius="14">
+
+                        <svgc:SvgViewbox
+                            Width="15"
+                            Height="15"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Stretch="Uniform"
+                            Source="/Assets/Icons/user.svg"/>
+                    </Border>
+
+                    <TextBox
+                        x:Name="UserNameTextBox"
+                        Grid.Column="1"
+                        Margin="0,0,10,0"
+                        VerticalContentAlignment="Center"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Foreground="#F2F4F7"
+                        CaretBrush="#F2F4F7"
+                        FontFamily="Inter"
+                        FontSize="13"
+                        TextChanged="UserNameTextBox_TextChanged"/>
+                </Grid>
+            </Border>
+
+            <!-- GOOGLE АККАУНТ -->
+            <TextBlock
+                Margin="0,16,0,0"
+                Text="Google аккаунт"
+                FontFamily="Inter"
+                FontSize="11"
+                FontWeight="Medium"
+                Foreground="#8C95A3"/>
+
+            <Border
+                Margin="0,7,0,0"
+                Height="42"
+                Background="#1A1F29"
+                BorderBrush="#2A303B"
+                BorderThickness="1"
+                CornerRadius="6">
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="40"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border
+                        Grid.Column="0"
+                        Width="28"
+                        Height="28"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Background="#151922"
+                        CornerRadius="14">
+
+                        <svgc:SvgViewbox
+                            x:Name="GoogleAccountIcon"
+                            Width="16"
+                            Height="16"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Stretch="Uniform"
+                            Source="/Assets/Icons/google-off.svg"/>
+                    </Border>
+
+                    <TextBlock
+                        x:Name="GoogleAccountText"
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        Text="Google аккаунт не подключен"
+                        FontFamily="Inter"
+                        FontSize="13"
+                        Foreground="#F2F4F7"/>
+
+                    <Button
+                        x:Name="GoogleConnectButton"
+                        Grid.Column="2"
+                        Width="104"
+                        Height="30"
+                        Margin="10,0,8,0"
+                        Padding="0"
+                        Content="Подключить"
+                        Background="#1A1F29"
+                        BorderBrush="#2A303B"
+                        BorderThickness="1"
+                        Foreground="#F2F4F7"
+                        FontFamily="Inter"
+                        FontSize="12"
+                        Click="GoogleConnectButton_Click"/>
+                </Grid>
+            </Border>
+
+            <!-- ПРОВЕРКА ПОДКЛЮЧЕНИЯ -->
+            <Border
+                Margin="0,7,0,0"
+                Padding="14,10,14,10"
+                Background="#1A1F29"
+                BorderBrush="#2A303B"
+                BorderThickness="1"
+                CornerRadius="6">
+
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0">
+                            <TextBlock
+                                Text="Проверка доступа к Google Drive"
+                                FontFamily="Inter"
+                                FontSize="12"
+                                FontWeight="Medium"
+                                Foreground="#F2F4F7"/>
+
+                            <TextBlock
+                                x:Name="DriveCheckStatusText"
+                                Margin="0,4,0,0"
+                                Text="Проверка ещё не выполнялась"
+                                FontFamily="Inter"
+                                FontSize="11"
+                                Foreground="#8C95A3"
+                                TextWrapping="Wrap"/>
+
+                            <TextBlock
+                                x:Name="DriveCheckTimeText"
+                                Margin="0,3,0,0"
+                                FontFamily="Inter"
+                                FontSize="10"
+                                Foreground="#8C95A3"
+                                Visibility="Collapsed"/>
+                        </StackPanel>
+
+                        <Button
+                            x:Name="DriveCheckButton"
+                            Grid.Column="1"
+                            Width="150"
+                            Height="32"
+                            Margin="12,0,0,0"
+                            Padding="0"
+                            Content="Проверить подключение"
+                            Background="#1A1F29"
+                            BorderBrush="#2A303B"
+                            BorderThickness="1"
+                            Foreground="#F2F4F7"
+                            FontFamily="Inter"
+                            FontSize="11"
+                            VerticalAlignment="Top"
+                            Click="DriveCheckButton_Click"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+    </Border>
+</UserControl>

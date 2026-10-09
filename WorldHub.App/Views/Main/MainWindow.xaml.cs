@@ -1,215 +1,162 @@
-﻿using System.IO;
 using System.Windows;
-using WorldHub.App.Services.Application;
-using WorldHub.App.Services.Diagnostics;
-using WorldHub.App.Services.Identity;
 using WorldHub.App.Services.Network;
 using WorldHub.App.Services.Settings;
 using WorldHub.App.Services.Update;
-using WorldHub.App.Views.Dialogs;
+using WorldHub.App.Views.Connection;
+using WorldHub.App.Views.Servers;
+using WorldHub.App.Views.Settings;
+using WorldHub.Core.Entities;
+using WorldHub.Core.Interfaces;
+using WorldHub.Infrastructure.Google;
+using WorldHub.Infrastructure.Minecraft;
+using WorldHub.Network.Services;
 using WorldHub.Sync.Services;
-using WorldHub.Sync.Transfer;
 
 namespace WorldHub.App.Views.Main;
 
 public partial class MainWindow
 {
-    private readonly WorldAppService _worldAppService;
-    private readonly SnapshotAppService _snapshotAppService;
-    private readonly WorldDeletionService _worldDeletionService;
-    private readonly LocalPlayerIdentity _localPlayerIdentity;
-    private readonly WorldHubNetworkService _worldHubNetworkService;
-    private readonly WorldTransferOrchestrator _worldTransferOrchestrator;
-    private readonly string _dataPath;
+    private readonly ServersView _serversView;
+    private readonly DedicatedServerProcessManager _processManager;
+    private readonly SettingsView _settingsView;
+    private readonly WorldHubServerService _worldHubServerService;
+    private readonly ServerService _serverService;
+    private readonly ConnectionView _connectionView;
+    private readonly RadminVpnDetector _radminVpnDetector;
 
     public MainWindow(
-        WorldAppService worldAppService,
-        SnapshotAppService snapshotAppService,
-        WorldDeletionService worldDeletionService,
-        LocalPlayerIdentity localPlayerIdentity,
+        ServerService serverService,
+        WorldHubServerService worldHubServerService,
+        IServerDetector serverDetector,
+        DedicatedServerProcessManager processManager,
+        RadminVpnDetector radminVpnDetector,
         WorldHubNetworkService worldHubNetworkService,
-        WorldTransferOrchestrator worldTransferOrchestrator,
-        string dataPath)
+        AppSettingsService appSettingsService,
+        GoogleDriveClient googleDriveClient,
+        GoogleDriveStatusCache googleDriveStatusCache,
+        LocalParticipantProvider localParticipantProvider,
+        string localDeviceId,
+        AppVersionService appVersionService)
     {
-        ArgumentNullException.ThrowIfNull(worldAppService);
-        ArgumentNullException.ThrowIfNull(snapshotAppService);
-        ArgumentNullException.ThrowIfNull(worldDeletionService);
-        ArgumentNullException.ThrowIfNull(localPlayerIdentity);
+        ArgumentNullException.ThrowIfNull(serverService);
+        ArgumentNullException.ThrowIfNull(worldHubServerService);
+        ArgumentNullException.ThrowIfNull(serverDetector);
+        ArgumentNullException.ThrowIfNull(processManager);
+        ArgumentNullException.ThrowIfNull(radminVpnDetector);
         ArgumentNullException.ThrowIfNull(worldHubNetworkService);
-        ArgumentException.ThrowIfNullOrWhiteSpace(dataPath);
-
-        DebugConsole.Log("Creating MainWindow...");
+        ArgumentNullException.ThrowIfNull(appSettingsService);
+        ArgumentNullException.ThrowIfNull(googleDriveClient);
+        ArgumentNullException.ThrowIfNull(googleDriveStatusCache);
+        ArgumentNullException.ThrowIfNull(localParticipantProvider);
+        ArgumentException.ThrowIfNullOrWhiteSpace(localDeviceId);
+        ArgumentNullException.ThrowIfNull(appVersionService);
 
         InitializeComponent();
 
-        DebugConsole.Log("MainWindow UI initialized.");
+        _processManager = processManager;
+        _worldHubServerService = worldHubServerService;
+        _serverService = serverService;
+        _radminVpnDetector = radminVpnDetector;
 
-        _worldAppService = worldAppService;
-        _snapshotAppService = snapshotAppService;
-        _worldDeletionService = worldDeletionService;
-        _localPlayerIdentity = localPlayerIdentity;
-        _worldHubNetworkService = worldHubNetworkService;
-        _worldTransferOrchestrator = worldTransferOrchestrator;
-        _dataPath = Path.GetFullPath(dataPath);
+        _connectionView = new ConnectionView(
+            serverService,
+            _worldHubServerService,
+            worldHubNetworkService,
+            _radminVpnDetector,
+            googleDriveStatusCache,
+            googleDriveClient,
+            localParticipantProvider,
+            localDeviceId);
 
-        ConnectionPage.Initialize(_worldHubNetworkService);
+        _serversView = new ServersView(
+            serverService,
+            serverDetector,
+            processManager);
 
-        WorldsPage.Initialize(
-            _worldAppService,
-            _worldTransferOrchestrator,
-            _dataPath,
-            ConnectionPage.TryGetFriendEndpoint,
-            RefreshDataAsync,
-            GoToConnectionPage);
+        _settingsView = new SettingsView();
 
-        HistoryPage.Initialize(
-            _worldAppService,
-            _snapshotAppService,
-            RefreshDataAsync);
-
-        var appVersionService = new AppVersionService();
-        var appSettingsService = new AppSettingsService();
-
-        SettingsPage.Initialize(
-            _worldDeletionService,
-            WorldsPage.Worlds,
-            RefreshDataAsync,
+        _settingsView.Initialize(
             appVersionService,
-            appSettingsService);
+            appSettingsService,
+            googleDriveClient,
+            googleDriveStatusCache);
 
-        DebugConsole.Log(
-            "Application services initialized.");
-
-        Loaded += MainWindow_Loaded;
-    }
-
-    private async void MainWindow_Loaded(
-        object sender,
-        RoutedEventArgs e)
-    {
-        Loaded -= MainWindow_Loaded;
-
-        DebugConsole.Log("MainWindow loaded.");
-
-        await WorldsPage.RefreshAsync();
-    }
-
-    private void GoToConnectionPage()
-    {
-        ConnectionNavigationButton_Click(this, new RoutedEventArgs());
+        SetActiveTab(NavTab.Servers);
+        ContentHost.Content = _serversView;
     }
 
     private void ConnectionNavigationButton_Click(
         object sender,
         RoutedEventArgs e)
     {
-        DebugConsole.Log("Connection page requested.");
-
-        WorldsPage.Visibility = Visibility.Collapsed;
-        HistoryPage.Visibility = Visibility.Collapsed;
-        SettingsPage.Visibility = Visibility.Collapsed;
-        ConnectionPage.Visibility = Visibility.Visible;
-
-        PageTitleText.Text = "Подключение";
-        PageDescriptionText.Text =
-            "Подключение к другому WorldHub по IP-адресу и порту.";
-    }
-
-    public async Task<bool> ShowIncomingTransferConfirmationAsync(
-        string worldName,
-        int snapshotCount)
-    {
-        DebugConsole.Log(
-            $"Incoming transfer confirmation requested. " +
-            $"World='{worldName}', snapshots={snapshotCount}.");
-
-        var result = await Dispatcher.InvokeAsync(
-            () =>
-            {
-                DebugConsole.Log(
-                    "Opening incoming transfer confirmation dialog.");
-
-                var accepted =
-                    DialogWindow.ShowTransferConfirmation(
-                        this,
-                        worldName,
-                        snapshotCount);
-
-                DebugConsole.Log(
-                    $"Incoming transfer confirmation result: {accepted}.");
-
-                return accepted;
-            });
-
-        return result;
-    }
-
-    private async void HistoryNavigationButton_Click(
-        object sender,
-        RoutedEventArgs e)
-    {
-        DebugConsole.Log("History page requested.");
-
-        WorldsPage.Visibility = Visibility.Collapsed;
-        SettingsPage.Visibility = Visibility.Collapsed;
-        HistoryPage.Visibility = Visibility.Visible;
-        ConnectionPage.Visibility = Visibility.Collapsed;
-
-        PageTitleText.Text = "История";
-        PageDescriptionText.Text = "История локальных версий миров";
-
-        await HistoryPage.RefreshAsync();
-    }
-
-    private void MyWorldsButton_Click(
-        object sender,
-        RoutedEventArgs e)
-    {
-        DebugConsole.Log("My worlds page requested.");
-
-        ConnectionPage.Visibility = Visibility.Collapsed;
-        HistoryPage.Visibility = Visibility.Collapsed;
-        SettingsPage.Visibility = Visibility.Collapsed;
-        WorldsPage.Visibility = Visibility.Visible;
-
-        PageTitleText.Text = "Мои миры";
-        PageDescriptionText.Text =
-            "Управляйте мирами, версиями и подключениями";
+        SetActiveTab(NavTab.Connection);
+        ContentHost.Content = _connectionView;
     }
 
     private void SettingsNavigationButton_Click(
         object sender,
         RoutedEventArgs e)
     {
-        DebugConsole.Log("Settings page requested.");
-
-        WorldsPage.Visibility = Visibility.Collapsed;
-        HistoryPage.Visibility = Visibility.Collapsed;
-        SettingsPage.Visibility = Visibility.Visible;
-        ConnectionPage.Visibility = Visibility.Collapsed;
-
-        PageTitleText.Text = "Настройки";
-        PageDescriptionText.Text =
-            "Управление WorldHub, мирами и локальными данными";
-
-        SettingsPage.RefreshWorlds(WorldsPage.Worlds);
+        SetActiveTab(NavTab.Settings);
+        ContentHost.Content = _settingsView;
     }
 
-    public async Task RefreshDataAsync()
+    public void OpenServerSettings(Server server)
     {
-        if (!Dispatcher.CheckAccess())
-        {
-            await Dispatcher.InvokeAsync(
-                async () => await RefreshDataAsync());
+        var settingsView =
+            new MinecraftServerSettingsView(
+                server,
+                _serverService,
+                _worldHubServerService,
+                _processManager);
 
-            return;
-        }
+        settingsView.BackRequested += ServerSettingsView_BackRequested;
 
-        await WorldsPage.RefreshAsync();
+        SetActiveTab(NavTab.Servers);
+        ContentHost.Content = settingsView;
+    }
 
-        if (HistoryPage.Visibility == Visibility.Visible)
-        {
-            await HistoryPage.RefreshAsync();
-        }
+    private void ServerSettingsView_BackRequested(
+        object? sender,
+        EventArgs e)
+    {
+        SetActiveTab(NavTab.Servers);
+        ContentHost.Content = _serversView;
+    }
+
+    private void ServersNavigationButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        SetActiveTab(NavTab.Servers);
+        ContentHost.Content = _serversView;
+    }
+
+    private void SetActiveTab(NavTab tab)
+    {
+        var activeBackground = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#1A1F29")!;
+        var inactiveBackground = System.Windows.Media.Brushes.Transparent;
+
+        var activeForeground = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#F2F4F7")!;
+        var inactiveForeground = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#8C95A3")!;
+
+        ServersNavButton.Background = tab == NavTab.Servers ? activeBackground : inactiveBackground;
+        ServersNavButton.Foreground = tab == NavTab.Servers ? activeForeground : inactiveForeground;
+        ServersNavText.Foreground = tab == NavTab.Servers ? activeForeground : inactiveForeground;
+
+        ConnectionNavButton.Background = tab == NavTab.Connection ? activeBackground : inactiveBackground;
+        ConnectionNavButton.Foreground = tab == NavTab.Connection ? activeForeground : inactiveForeground;
+        ConnectionNavText.Foreground = tab == NavTab.Connection ? activeForeground : inactiveForeground;
+
+        SettingsNavButton.Background = tab == NavTab.Settings ? activeBackground : inactiveBackground;
+        SettingsNavButton.Foreground = tab == NavTab.Settings ? activeForeground : inactiveForeground;
+        SettingsNavText.Foreground = tab == NavTab.Settings ? activeForeground : inactiveForeground;
+    }
+
+    private enum NavTab
+    {
+        Servers,
+        Connection,
+        Settings
     }
 }

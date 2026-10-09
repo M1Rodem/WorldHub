@@ -1,262 +1,415 @@
-﻿using System.Net.NetworkInformation;
-using System.Net.Sockets;
 using System.Windows;
 using System.Windows.Controls;
-using WorldHub.App.Services.Diagnostics;
+using System.Windows.Threading;
 using WorldHub.App.Services.Network;
+using WorldHub.App.Views.Dialogs;
+using WorldHub.App.Views.Settings;
+using WorldHub.Core.Entities;
+using WorldHub.Infrastructure.Google;
+using WorldHub.Network.Services;
+using WorldHub.Sync.Services;
 
 namespace WorldHub.App.Views.Connection;
 
 public partial class ConnectionView : UserControl
 {
-    private WorldHubNetworkService? _networkService;
+    private readonly WorldHubServerService _worldHubServerService;
+    private readonly ServerService _serverService;
+    private readonly WorldHubParticipantCheckService _checkService;
+    private readonly RadminVpnDetector _radminVpnDetector;
+    private readonly GoogleDriveStatusCache _googleDriveStatusCache;
+    private readonly LocalParticipantProvider _localParticipantProvider;
+    private readonly DispatcherTimer _refreshTimer;
 
-    private string? _ownAddress;
+    private CancellationTokenSource? _pageCts;
+    private bool _isLoading;
+    private Guid? _selectedServerId;
+    private WorldHubServer? _currentServer;
 
-    public ConnectionView()
+    public ConnectionView(
+        ServerService serverService,
+        WorldHubServerService worldHubServerService,
+        WorldHubNetworkService networkService,
+        RadminVpnDetector radminVpnDetector,
+        GoogleDriveStatusCache googleDriveStatusCache,
+        GoogleDriveClient googleDriveClient,
+        LocalParticipantProvider localParticipantProvider,
+        string localDeviceId)
     {
-        InitializeComponent();
-    }
-
-    public void Initialize(
-        WorldHubNetworkService networkService)
-    {
+        ArgumentNullException.ThrowIfNull(worldHubServerService);
         ArgumentNullException.ThrowIfNull(networkService);
+        ArgumentNullException.ThrowIfNull(serverService);
+        ArgumentNullException.ThrowIfNull(radminVpnDetector);
+        ArgumentNullException.ThrowIfNull(googleDriveStatusCache);
+        ArgumentNullException.ThrowIfNull(googleDriveClient);
+        ArgumentNullException.ThrowIfNull(localParticipantProvider);
+        ArgumentException.ThrowIfNullOrWhiteSpace(localDeviceId);
 
-        _networkService = networkService;
+        _worldHubServerService = worldHubServerService;
+        _serverService = serverService;
+        _radminVpnDetector = radminVpnDetector;
+        _googleDriveStatusCache = googleDriveStatusCache;
+        _localParticipantProvider = localParticipantProvider;
 
-        PortTextBox.Text = string.Empty;
+        _checkService = new WorldHubParticipantCheckService(
+            networkService,
+            worldHubServerService,
+            localDeviceId);
 
-        UpdateOwnAddress(networkService.Port);
-    }
+        InitializeComponent();
 
-    private void UpdateOwnAddress(int port)
-    {
-        var ipAddress = FindRadminVpnAddress();
+        RadminCard.Initialize(radminVpnDetector);
+        FolderSection.Initialize(googleDriveClient, worldHubServerService);
+        FolderSection.ServerUpdated += (_, updatedServer) => _currentServer = updatedServer;
 
-        if (ipAddress is null)
+        ParticipantsSection.Initialize(_checkService, worldHubServerService, localDeviceId);
+        ParticipantsSection.ParticipantCountChanged += (_, count) => UpdateParticipantCountUi(count);
+        ParticipantsSection.InviteRequested += async vm =>
         {
-            _ownAddress = null;
-
-            OwnAddressTextBlock.Text =
-                $"Radmin VPN не найден :{port}";
-
-            OwnStatusTextBlock.Text =
-                $"WorldHub запущен и ожидает подключения на порту {port}. " +
-                "IP-адрес Radmin VPN не обнаружен.";
-
-            CopyAddressButton.IsEnabled = false;
-
-            DebugConsole.Log(
-                "Radmin VPN IPv4 address was not found.");
-
-            return;
-        }
-
-        _ownAddress =
-            $"{ipAddress}:{port}";
-
-        OwnAddressTextBlock.Text =
-            _ownAddress;
-
-        OwnStatusTextBlock.Text =
-            $"Готов принимать подключения на порту {port}.";
-
-        CopyAddressButton.IsEnabled = true;
-
-        DebugConsole.Log(
-            $"Radmin VPN address detected: {_ownAddress}");
-    }
-
-    private static string? FindRadminVpnAddress()
-    {
-        try
-        {
-            foreach (var networkInterface in
-                     NetworkInterface.GetAllNetworkInterfaces())
+            var owner = Window.GetWindow(this);
+            if (owner is not null)
             {
-                if (networkInterface.OperationalStatus !=
-                    OperationalStatus.Up)
-                {
-                    continue;
-                }
-
-                if (networkInterface.NetworkInterfaceType ==
-                    NetworkInterfaceType.Loopback)
-                {
-                    continue;
-                }
-
-                var properties =
-                    networkInterface.GetIPProperties();
-
-                foreach (var address in
-                         properties.UnicastAddresses)
-                {
-                    if (address.Address.AddressFamily !=
-                        AddressFamily.InterNetwork)
-                    {
-                        continue;
-                    }
-
-                    var ip =
-                        address.Address;
-
-                    if (ip.GetAddressBytes()[0] == 26)
-                    {
-                        return ip.ToString();
-                    }
-                }
+                await FolderSection.InviteParticipantAsync(vm, owner);
             }
-        }
-        catch (Exception exception)
-        {
-            DebugConsole.Error(
-                $"Failed to detect Radmin VPN address: {exception}");
-        }
+        };
 
-        return null;
+        _refreshTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(30)
+        };
+
+        _refreshTimer.Tick += RefreshTimer_Tick;
+        _googleDriveStatusCache.Updated += GoogleDriveStatusCache_Updated;
+
+        Loaded += ConnectionView_Loaded;
+        Unloaded += ConnectionView_Unloaded;
     }
 
-    private void CopyAddressButton_Click(
+    private void UpdateParticipantCountUi(int count)
+    {
+        ParticipantCountText.Text =
+            count == 0
+                ? "Нет участников"
+                : $"Участников: {count}";
+    }
+
+    private async void AddParticipantButton_Click(
         object sender,
         RoutedEventArgs e)
     {
-        if (string.IsNullOrWhiteSpace(_ownAddress))
+        var owner = Window.GetWindow(this);
+        if (owner is not null)
         {
-            return;
-        }
-
-        try
-        {
-            Clipboard.SetText(_ownAddress);
-
-            OwnStatusTextBlock.Text =
-                "Адрес скопирован в буфер обмена.";
-
-            DebugConsole.Log(
-                $"WorldHub address copied: {_ownAddress}");
-        }
-        catch (Exception exception)
-        {
-            OwnStatusTextBlock.Text =
-                "Не удалось скопировать адрес.";
-
-            DebugConsole.Error(
-                $"Failed to copy WorldHub address: {exception}");
+            await ParticipantsSection.AddParticipantAsync(owner);
         }
     }
 
-    private async void ConnectButton_Click(
+    private async void ConnectionView_Loaded(
         object sender,
         RoutedEventArgs e)
     {
-        if (_networkService is null)
-        {
-            SetConnectionStatus(
-                "Сетевой сервис не инициализирован.");
+        _pageCts?.Cancel();
+        _pageCts?.Dispose();
+        var cts = new CancellationTokenSource();
+        _pageCts = cts;
 
+        await RadminCard.RefreshStatusAsync();
+
+        if (cts.IsCancellationRequested)
+        {
             return;
         }
 
-        var host =
-            HostTextBox.Text.Trim();
+        await LoadWorldHubServersAsync();
 
-        if (string.IsNullOrWhiteSpace(host))
+        if (cts.IsCancellationRequested)
         {
-            SetConnectionStatus(
-                "Введите IP-адрес друга.");
-
             return;
         }
 
-        if (!int.TryParse(
-                PortTextBox.Text.Trim(),
-                out var port) ||
-            port is < 1 or > 65535)
+        if (_googleDriveStatusCache.IsInitialized &&
+            _selectedServerId is not null)
         {
-            SetConnectionStatus(
-                "Введите корректный порт WorldHub друга.");
+            await ParticipantsSection.CheckAllParticipantsAsync(
+                _selectedServerId.Value,
+                cts.Token);
+        }
 
+        if (cts.IsCancellationRequested)
+        {
             return;
         }
 
-        ConnectButton.IsEnabled = false;
+        _refreshTimer.Start();
+    }
 
-        var target =
-            $"{host}:{port}";
+    private void ConnectionView_Unloaded(
+        object sender,
+        RoutedEventArgs e)
+    {
+        _refreshTimer.Stop();
 
-        SetConnectionStatus(
-            $"Подключение к {target}...");
+        _pageCts?.Cancel();
+        _pageCts?.Dispose();
+        _pageCts = null;
+    }
 
-        DebugConsole.Log(
-            $"Connection UI requested: {target}");
+    private void GoogleDriveStatusCache_Updated(
+        object? sender,
+        EventArgs e)
+    {
+        Dispatcher.BeginInvoke(
+            new Action(async () =>
+            {
+                try
+                {
+                    if (_selectedServerId is null ||
+                        _pageCts is null ||
+                        _pageCts.IsCancellationRequested)
+                    {
+                        return;
+                    }
 
+                    await ParticipantsSection.CheckAllParticipantsAsync(
+                        _selectedServerId.Value,
+                        _pageCts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                }
+                catch (Exception exception)
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"Drive update handler failed: {exception.Message}");
+                }
+            }));
+    }
+
+    private async void RefreshTimer_Tick(
+        object? sender,
+        EventArgs e)
+    {
+        if (_selectedServerId is null ||
+            _pageCts is null)
+        {
+            return;
+        }
+
+        await ParticipantsSection.CheckAllParticipantsAsync(
+            _selectedServerId.Value,
+            _pageCts.Token);
+    }
+
+    private async Task LoadWorldHubServersAsync(Guid? selectedId = null)
+    {
         try
         {
-            var connected =
-                await _networkService.ConnectAsync(
-                    host,
-                    port);
+            _isLoading = true;
 
-            if (connected)
+            var servers = await _worldHubServerService.GetAllAsync();
+
+            WorldHubServerComboBox.ItemsSource = servers;
+
+            if (selectedId.HasValue)
             {
-                SetConnectionStatus(
-                    $"Проверка связи успешна: {target}");
-
-                DebugConsole.Log(
-                    $"Connection UI handshake succeeded: {target}");
+                WorldHubServerComboBox.SelectedValue = selectedId.Value;
             }
-            else
+            else if (WorldHubServerComboBox.SelectedValue is null &&
+                     servers.Count > 0)
             {
-                SetConnectionStatus(
-                    $"Не удалось подключиться к {target}");
-
-                DebugConsole.Log(
-                    $"Connection UI handshake failed: {target}");
+                WorldHubServerComboBox.SelectedIndex = 0;
             }
+
+            await UpdateSelectedServerAsync();
         }
         catch (Exception exception)
         {
-            SetConnectionStatus(
-                $"Ошибка подключения: {exception.Message}");
-
-            DebugConsole.Error(
-                $"Connection UI error: {exception}");
+            MessageBox.Show(
+                Window.GetWindow(this),
+                $"Не удалось загрузить WorldHub-серверы.\n\n{exception.Message}",
+                "WorldHub",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
         finally
         {
-            ConnectButton.IsEnabled = true;
+            _isLoading = false;
         }
     }
 
-    public bool TryGetFriendEndpoint(
-        out string host,
-        out int port)
+    private async void WorldHubServerComboBox_SelectionChanged(
+        object sender,
+        SelectionChangedEventArgs e)
     {
-        host = HostTextBox.Text.Trim();
-
-        if (string.IsNullOrWhiteSpace(host))
+        if (_isLoading)
         {
-            port = 0;
-            return false;
+            return;
         }
 
-        if (!int.TryParse(
-                PortTextBox.Text.Trim(),
-                out port) ||
-            port is < 1 or > 65535)
-        {
-            port = 0;
-            return false;
-        }
-
-        return true;
+        await UpdateSelectedServerAsync();
     }
 
-    private void SetConnectionStatus(
-        string message)
+    private async Task UpdateSelectedServerAsync()
     {
-        StatusTextBlock.Text = message;
+        if (WorldHubServerComboBox.SelectedItem is not WorldHubServer server)
+        {
+            _selectedServerId = null;
+            _currentServer = null;
+            ParticipantsSection.Clear();
+            FolderSection.SetServer(null);
+
+            DeleteWorldHubServerButton.IsEnabled = false;
+
+            EmptyStatePanel.Visibility = Visibility.Visible;
+            SelectedServerScrollViewer.Visibility = Visibility.Collapsed;
+            SelectedServerPanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        _selectedServerId = server.Id;
+        _currentServer = server;
+
+        DeleteWorldHubServerButton.IsEnabled = true;
+
+        SelectedServerNameText.Text = server.Name;
+        EmptyStatePanel.Visibility = Visibility.Collapsed;
+        SelectedServerScrollViewer.Visibility = Visibility.Visible;
+        SelectedServerPanel.Visibility = Visibility.Visible;
+
+        FolderSection.SetServer(server);
+        ParticipantsSection.SetServer(server.Id, server.Name);
+        await ParticipantsSection.ReloadParticipantsAsync(server.Id);
+    }
+
+    private async void CreateWorldHubServerButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        var owner = Window.GetWindow(this);
+
+        if (owner is null)
+        {
+            return;
+        }
+
+        RadminVpnAdapterInfo? adapter;
+
+        try
+        {
+            adapter = await Task.Run(() =>
+                _radminVpnDetector.FindAdapter());
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(
+                owner,
+                $"Ошибка проверки Radmin VPN.\n\n{exception.Message}",
+                "WorldHub",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+
+            return;
+        }
+
+        if (adapter is null)
+        {
+            MessageBox.Show(
+                owner,
+                "Подключите Radmin VPN и повторите попытку.",
+                "WorldHub",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+
+            return;
+        }
+
+        var window = new CreateWorldHubServerWindow(
+            _worldHubServerService,
+            _localParticipantProvider)
+        {
+            Owner = owner
+        };
+
+        if (window.ShowDialog() != true ||
+            window.CreatedServer is null)
+        {
+            return;
+        }
+
+        await LoadWorldHubServersAsync(window.CreatedServer.Id);
+    }
+
+    private async void DeleteWorldHubServerButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        if (_selectedServerId is null ||
+            _currentServer is null)
+        {
+            return;
+        }
+
+        var owner = Window.GetWindow(this);
+
+        if (owner is null)
+        {
+            return;
+        }
+
+        var serverName = _currentServer.Name;
+
+        var confirmed = DialogWindow.ShowConfirmation(
+            owner,
+            "Удаление WorldHub-сервера",
+            $"Удалить WorldHub-сервер «{serverName}»?\n\n" +
+            "• Удалятся связи с Minecraft-серверами.\n" +
+            "• Отвяжется общая папка Google Drive. " +
+            "Сама папка в Drive останется — удалите её вручную, если нужно.\n" +
+            "• У друзей сервер останется в их локальных данных, " +
+            "пока они не удалят его вручную.\n\n" +
+            "Это действие нельзя отменить.");
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        DeleteWorldHubServerButton.IsEnabled = false;
+
+        try
+        {
+            var token = _pageCts?.Token ?? CancellationToken.None;
+
+            await _worldHubServerService.DeleteWithCleanupAsync(
+                _selectedServerId.Value,
+                _serverService,
+                token);
+
+            _checkService.RemoveGate(_selectedServerId.Value);
+
+            _selectedServerId = null;
+            _currentServer = null;
+            ParticipantsSection.Clear();
+            FolderSection.SetServer(null);
+
+            await LoadWorldHubServersAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(
+                owner,
+                $"Не удалось удалить WorldHub-сервер.\n\n{exception.Message}",
+                "WorldHub",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+        finally
+        {
+            DeleteWorldHubServerButton.IsEnabled =
+                _selectedServerId is not null;
+        }
     }
 }

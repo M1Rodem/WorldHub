@@ -1,4 +1,4 @@
-﻿using WorldHub.Network.Interfaces;
+using WorldHub.Network.Interfaces;
 using WorldHub.Network.Models;
 using WorldHub.Network.Protocol;
 
@@ -42,6 +42,15 @@ public sealed class NetworkService
             await connection.DisposeAsync();
             throw;
         }
+    }
+
+    public Task<NetworkListener> ListenAsync(
+        int port,
+        CancellationToken cancellationToken = default)
+    {
+        return _networkProvider.ListenAsync(
+            port,
+            cancellationToken);
     }
 
     public async Task<NetworkConnection> AcceptAsync(

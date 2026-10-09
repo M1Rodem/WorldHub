@@ -10,4 +10,16 @@
     <ProjectReference Include="..\WorldHub.Core\WorldHub.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Google.Apis.Auth" Version="1.77.0" />
+    <PackageReference Include="Google.Apis.Drive.v3" Version="1.77.0.4276" />
+    <PackageReference Include="System.Management" Version="10.0.12" />
+  </ItemGroup>
+
+	<ItemGroup>
+		<None Update="Google\credentials.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
 </Project>

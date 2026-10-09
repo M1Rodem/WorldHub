@@ -1,4 +1,4 @@
-﻿using Microsoft.Win32;
+using Microsoft.Win32;
 using System.IO;
 using System.Text.Json;
 
@@ -15,9 +15,14 @@ public sealed class AppSettingsService
     private const string SettingsFileName =
         "settings.json";
 
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = true
+    };
+
+    private readonly object _lock = new();
     private readonly string _defaultDataPath;
     private string _dataPath;
-    private string _settingsRootPath;
 
     public AppSettingsService()
     {
@@ -25,29 +30,25 @@ public sealed class AppSettingsService
             Environment.GetFolderPath(
                 Environment.SpecialFolder.LocalApplicationData);
 
-        var defaultRootPath =
-            Path.Combine(
-                localAppDataPath,
-                "WorldHub");
-
         _defaultDataPath =
             Path.Combine(
-                defaultRootPath,
+                localAppDataPath,
+                "WorldHub",
                 "data");
-
-        _settingsRootPath =
-            LoadDataPathFromRegistry()
-            ?? defaultRootPath;
 
         _dataPath =
-            Path.Combine(
-                _settingsRootPath,
-                "data");
+            LoadDataPathFromRegistry()
+            ?? _defaultDataPath;
+
+        Directory.CreateDirectory(_dataPath);
     }
 
     public string GetDataPath()
     {
-        return _dataPath;
+        lock (_lock)
+        {
+            return _dataPath;
+        }
     }
 
     public string GetDefaultDataPath()
@@ -64,46 +65,60 @@ public sealed class AppSettingsService
                 nameof(dataPath));
         }
 
-        var fullPath =
-            Path.GetFullPath(dataPath);
+        var fullPath = Path.GetFullPath(dataPath);
 
-        var dataPathRoot =
-            Path.Combine(
-                fullPath,
-                "data");
+        lock (_lock)
+        {
+            Directory.CreateDirectory(fullPath);
 
-        Directory.CreateDirectory(
-            dataPathRoot);
+            SaveDataPathToRegistry(fullPath);
 
-        SaveDataPathToRegistry(
-            fullPath);
+            _dataPath = fullPath;
 
-        _settingsRootPath = fullPath;
-        _dataPath = dataPathRoot;
-
-        SaveSettingsFile(
-            fullPath);
+            SaveSettingsLocked(fullPath, settings =>
+            {
+                settings.DataPath = fullPath;
+            });
+        }
     }
 
-    public void DeleteLegacySettingsDirectory()
+    public string GetUserName()
     {
-        var legacyDirectory =
-            Path.Combine(
-                Environment.GetFolderPath(
-                    Environment.SpecialFolder.LocalApplicationData),
-                "WorldHub");
-
-        if (!Directory.Exists(legacyDirectory))
+        lock (_lock)
         {
-            return;
+            var settings = LoadSettingsLocked(_dataPath);
+
+            if (!string.IsNullOrWhiteSpace(settings.UserName))
+            {
+                return settings.UserName;
+            }
+
+            return Environment.UserName;
+        }
+    }
+
+    public void SaveUserName(string userName)
+    {
+        if (string.IsNullOrWhiteSpace(userName))
+        {
+            throw new ArgumentException(
+                "Имя пользователя не может быть пустым.",
+                nameof(userName));
         }
 
-        Directory.Delete(
-            legacyDirectory,
-            recursive: true);
+        var trimmed = userName.Trim();
+
+        lock (_lock)
+        {
+            SaveSettingsLocked(_dataPath, settings =>
+            {
+                settings.DataPath = _dataPath;
+                settings.UserName = trimmed;
+            });
+        }
     }
 
-    private string? LoadDataPathFromRegistry()
+    private static string? LoadDataPathFromRegistry()
     {
         try
         {
@@ -113,8 +128,7 @@ public sealed class AppSettingsService
 
             var value =
                 key?.GetValue(
-                    RegistryDataPathValue)
-                as string;
+                    RegistryDataPathValue) as string;
 
             if (string.IsNullOrWhiteSpace(value))
             {
@@ -124,10 +138,40 @@ public sealed class AppSettingsService
             var fullPath =
                 Path.GetFullPath(value);
 
-            if (!Directory.Exists(fullPath))
+            /*
+             * Старый формат:
+             * %LOCALAPPDATA%\WorldHub
+             *
+             * Новый формат:
+             * %LOCALAPPDATA%\WorldHub\data
+             */
+            var localAppDataPath =
+                Environment.GetFolderPath(
+                    Environment.SpecialFolder.LocalApplicationData);
+
+            var legacyRoot =
+                Path.Combine(
+                    localAppDataPath,
+                    "WorldHub");
+
+            if (string.Equals(
+                    fullPath.TrimEnd(
+                        Path.DirectorySeparatorChar,
+                        Path.AltDirectorySeparatorChar),
+                    legacyRoot.TrimEnd(
+                        Path.DirectorySeparatorChar,
+                        Path.AltDirectorySeparatorChar),
+                    StringComparison.OrdinalIgnoreCase))
             {
-                return null;
+                fullPath =
+                    Path.Combine(
+                        legacyRoot,
+                        "data");
+
+                SaveDataPathToRegistry(fullPath);
             }
+
+            Directory.CreateDirectory(fullPath);
 
             return fullPath;
         }
@@ -156,35 +200,85 @@ public sealed class AppSettingsService
             RegistryValueKind.String);
     }
 
-    private static void SaveSettingsFile(
-        string dataPath)
+    private static AppSettings LoadSettingsLocked(string dataPath)
     {
         var settingsPath =
             Path.Combine(
                 dataPath,
                 SettingsFileName);
 
-        var settings =
-            new AppSettings
+        if (!File.Exists(settingsPath))
+        {
+            return new AppSettings { DataPath = dataPath };
+        }
+
+        try
+        {
+            var json = File.ReadAllText(settingsPath);
+            var settings = JsonSerializer.Deserialize<AppSettings>(json);
+
+            if (settings is not null)
             {
-                DataPath = dataPath
-            };
+                return settings;
+            }
+        }
+        catch
+        {
+            // fallback below
+        }
 
-        var json =
-            JsonSerializer.Serialize(
-                settings,
-                new JsonSerializerOptions
+        return new AppSettings { DataPath = dataPath };
+    }
+
+    private static void SaveSettingsLocked(
+        string dataPath,
+        Action<AppSettings> updateAction)
+    {
+        var settingsPath =
+            Path.Combine(
+                dataPath,
+                SettingsFileName);
+
+        var settings = LoadSettingsLocked(dataPath);
+
+        updateAction(settings);
+
+        var json = JsonSerializer.Serialize(
+            settings,
+            JsonOptions);
+
+        Directory.CreateDirectory(dataPath);
+
+        var tempFilePath = $"{settingsPath}.tmp";
+
+        try
+        {
+            File.WriteAllText(tempFilePath, json);
+
+            File.Move(
+                tempFilePath,
+                settingsPath,
+                overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(tempFilePath))
+            {
+                try
                 {
-                    WriteIndented = true
-                });
-
-        File.WriteAllText(
-            settingsPath,
-            json);
+                    File.Delete(tempFilePath);
+                }
+                catch
+                {
+                }
+            }
+        }
     }
 
     private sealed class AppSettings
     {
-        public string? DataPath { get; init; }
+        public string? DataPath { get; set; }
+
+        public string? UserName { get; set; }
     }
 }

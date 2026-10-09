@@ -1,0 +1,403 @@
+<UserControl
+    x:Class="WorldHub.App.Views.Servers.ServersView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:svgc="http://sharpvectors.codeplex.com/svgc/">
+
+    <Grid>
+
+        <!-- HEADER -->
+
+        <Grid
+            Margin="0,20,0,0"
+            VerticalAlignment="Top">
+
+            <StackPanel
+                HorizontalAlignment="Left">
+
+                <TextBlock
+                    Text="Мои серверы"
+                    FontFamily="Inter"
+                    FontSize="22"
+                    FontWeight="SemiBold"
+                    Foreground="#F2F4F7"
+                    TextOptions.TextFormattingMode="Display"
+                    TextOptions.TextRenderingMode="ClearType" />
+
+                <TextBlock
+                    Margin="0,5,0,0"
+                    Text="Локальные Minecraft Dedicated Server"
+                    FontFamily="Inter"
+                    FontSize="12"
+                    Foreground="#8C95A3"
+                    TextOptions.TextFormattingMode="Display"
+                    TextOptions.TextRenderingMode="ClearType" />
+
+            </StackPanel>
+
+            <Button
+                x:Name="HeaderAddServerButton"
+                Width="230"
+                Height="38"
+                HorizontalAlignment="Right"
+                Padding="0"
+                Background="#4C8DFF"
+                BorderBrush="#4C8DFF"
+                BorderThickness="1"
+                Click="AddServerButton_Click">
+
+                <StackPanel
+                    Orientation="Horizontal"
+                    VerticalAlignment="Center">
+
+                    <svgc:SvgViewbox
+                        Width="18"
+                        Height="18"
+                        Margin="11,0,0,0"
+                        Stretch="Uniform"
+                        Source="/Assets/Icons/plus.svg" />
+
+                    <TextBlock
+                        Margin="9,0,0,0"
+                        VerticalAlignment="Center"
+                        Text="Добавить сервер"
+                        FontFamily="Inter"
+                        FontSize="13"
+                        FontWeight="Medium"
+                        Foreground="White" />
+
+                </StackPanel>
+
+            </Button>
+
+        </Grid>
+
+
+        <!-- EMPTY STATE -->
+
+        <StackPanel
+            x:Name="EmptyState"
+            Margin="0,168,0,0"
+            VerticalAlignment="Top">
+
+            <TextBlock
+                Text="У вас пока нет серверов"
+                FontFamily="Inter"
+                FontSize="24"
+                FontWeight="SemiBold"
+                Foreground="#F2F4F7" />
+
+            <TextBlock
+                Margin="0,10,0,0"
+                Text="Добавьте локальный Minecraft Dedicated Server."
+                FontFamily="Inter"
+                FontSize="14"
+                Foreground="#8C95A3" />
+
+            <Button
+                Width="175"
+                Height="38"
+                Margin="0,25,0,0"
+                Padding="0"
+                Background="#1A1F29"
+                BorderBrush="#2A303B"
+                BorderThickness="1"
+                HorizontalContentAlignment="Left"
+                Click="AddServerButton_Click">
+
+                <StackPanel
+                    Orientation="Horizontal"
+                    VerticalAlignment="Center">
+
+                    <svgc:SvgViewbox
+                        Width="18"
+                        Height="18"
+                        Margin="10,0,0,0"
+                        Stretch="Uniform"
+                        Source="/Assets/Icons/plus.svg" />
+
+                    <TextBlock
+                        Margin="9,0,0,0"
+                        VerticalAlignment="Center"
+                        Text="Добавить сервер"
+                        FontFamily="Inter"
+                        FontSize="13"
+                        FontWeight="Medium"
+                        Foreground="#F2F4F7" />
+
+                </StackPanel>
+
+            </Button>
+
+        </StackPanel>
+
+
+        <!-- SERVER LIST -->
+
+        <ScrollViewer
+            x:Name="ServersList"
+            Margin="0,94,0,0"
+            VerticalScrollBarVisibility="Auto"
+            Visibility="Collapsed">
+
+            <ItemsControl
+                x:Name="ServersItemsControl">
+
+                <ItemsControl.ItemTemplate>
+
+                    <DataTemplate>
+
+                        <Border
+                            Margin="0,0,0,16"
+                            Padding="22"
+                            Height="184"
+                            Background="#151922"
+                            BorderBrush="#2A303B"
+                            BorderThickness="1"
+                            CornerRadius="8">
+
+                            <Grid>
+
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="24" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+
+                                <!-- SERVER ICON -->
+
+                                <svgc:SvgViewbox
+                                    Grid.Row="0"
+                                    Grid.RowSpan="2"
+                                    Grid.Column="0"
+                                    Width="24"
+                                    Height="24"
+                                    VerticalAlignment="Top"
+                                    Stretch="Uniform"
+                                    Source="/Assets/Icons/server.svg" />
+
+
+                                <!-- NAME -->
+
+                                <TextBlock
+                                    Grid.Row="0"
+                                    Grid.Column="1"
+                                    Margin="14,0,0,0"
+                                    Text="{Binding Name}"
+                                    FontFamily="Inter"
+                                    FontSize="17"
+                                    FontWeight="SemiBold"
+                                    Foreground="#F2F4F7" />
+
+
+                                <!-- STATUS -->
+
+                                <StackPanel
+                                    Grid.Row="1"
+                                    Grid.Column="1"
+                                    Margin="14,5,0,0"
+                                    Orientation="Horizontal">
+
+                                    <Ellipse
+                                        Width="7"
+                                        Height="7"
+                                        VerticalAlignment="Center"
+                                        Fill="{Binding StatusBrush}" />
+
+                                    <TextBlock
+                                        Margin="9,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Text="{Binding StatusText}"
+                                        FontFamily="Inter"
+                                        FontSize="12"
+                                        FontWeight="Medium"
+                                        Foreground="#8C95A3" />
+
+                                </StackPanel>
+
+
+                                <!-- METADATA -->
+
+                                <Grid
+                                    Grid.Row="2"
+                                    Grid.Column="1"
+                                    Margin="14,15,0,0">
+
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+
+                                    <!-- PATH -->
+
+                                    <StackPanel
+                                        Grid.Column="0">
+
+                                        <TextBlock
+                                            Text="Путь к серверу"
+                                            FontFamily="Inter"
+                                            FontSize="10"
+                                            Foreground="#8C95A3" />
+
+                                        <TextBlock
+                                            Margin="0,3,20,0"
+                                            MaxWidth="350"
+                                            Text="{Binding LocalPath}"
+                                            TextTrimming="CharacterEllipsis"
+                                            FontFamily="Inter"
+                                            FontSize="11"
+                                            Foreground="#F2F4F7" />
+
+                                    </StackPanel>
+
+
+                                    <!-- MINECRAFT -->
+
+                                    <StackPanel
+                                        Grid.Column="1"
+                                        Margin="24,0,0,0">
+
+                                        <TextBlock
+                                            Text="Minecraft"
+                                            FontFamily="Inter"
+                                            FontSize="10"
+                                            Foreground="#8C95A3" />
+
+                                        <TextBlock
+                                            Margin="0,3,0,0"
+                                            Text="{Binding MinecraftVersion}"
+                                            FontFamily="Inter"
+                                            FontSize="11"
+                                            Foreground="#F2F4F7" />
+
+                                    </StackPanel>
+
+
+                                    <!-- LOADER -->
+
+                                    <StackPanel
+                                        Grid.Column="2"
+                                        Margin="24,0,0,0">
+
+                                        <TextBlock
+                                            Text="{Binding Loader}"
+                                            FontFamily="Inter"
+                                            FontSize="10"
+                                            Foreground="#8C95A3" />
+
+                                        <TextBlock
+                                            Margin="0,3,0,0"
+                                            Text="{Binding LoaderVersion}"
+                                            FontFamily="Inter"
+                                            FontSize="11"
+                                            Foreground="#F2F4F7" />
+
+                                    </StackPanel>
+
+
+                                    <!-- SAVE VERSION -->
+
+                                    <StackPanel
+                                        Grid.Column="3"
+                                        Margin="24,0,0,0">
+
+                                        <TextBlock
+                                            Text="Версия сохранения"
+                                            FontFamily="Inter"
+                                            FontSize="10"
+                                            Foreground="#8C95A3" />
+
+                                        <TextBlock
+                                            Margin="0,3,0,0"
+                                            Text="{Binding SaveVersion}"
+                                            FontFamily="Inter"
+                                            FontSize="11"
+                                            FontWeight="Medium"
+                                            Foreground="#F2F4F7" />
+
+                                    </StackPanel>
+
+                                </Grid>
+
+
+                                <!-- ACTIONS -->
+
+                                <StackPanel
+                                    Grid.Row="3"
+                                    Grid.Column="1"
+                                    Margin="14,12,0,0"
+                                    Orientation="Horizontal">
+
+                                    <!-- START / STOP -->
+
+                                    <Button
+                                        Width="118"
+                                        Height="38"
+                                        Padding="0"
+                                        Background="{Binding ActionBackground}"
+                                        BorderBrush="#2A303B"
+                                        BorderThickness="1"
+                                        IsEnabled="{Binding IsActionEnabled}"
+                                        Tag="{Binding}"
+                                        Click="ControlButton_Click">
+
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            Text="{Binding ActionText}"
+                                            FontFamily="Inter"
+                                            FontSize="13"
+                                            FontWeight="Medium"
+                                            Foreground="#F2F4F7" />
+
+                                    </Button>
+
+
+                                    <!-- SETTINGS -->
+
+                                    <Button
+                                        Width="36"
+                                        Height="36"
+                                        Margin="8,0,0,0"
+                                        Padding="0"
+                                        Background="#1A1F29"
+                                        BorderBrush="#2A303B"
+                                        BorderThickness="1"
+                                        Tag="{Binding}"
+                                        ToolTip="Настройки"
+                                        Click="OpenServerButton_Click">
+
+                                        <svgc:SvgViewbox
+                                            Width="18"
+                                            Height="18"
+                                            Stretch="Uniform"
+                                            Source="/Assets/Icons/settings.svg" />
+
+                                    </Button>
+
+                                </StackPanel>
+
+                            </Grid>
+
+                        </Border>
+
+                    </DataTemplate>
+
+                </ItemsControl.ItemTemplate>
+
+            </ItemsControl>
+
+        </ScrollViewer>
+
+    </Grid>
+
+</UserControl>

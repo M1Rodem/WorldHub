@@ -1,199 +1,193 @@
-﻿<Window x:Class="WorldHub.App.Views.Main.MainWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:viewsWorlds="clr-namespace:WorldHub.App.Views.Worlds"
-        xmlns:viewsHistory="clr-namespace:WorldHub.App.Views.History"
-        xmlns:viewsSettings="clr-namespace:WorldHub.App.Views.Settings"
-        xmlns:viewsConnection="clr-namespace:WorldHub.App.Views.Connection"
-        Title="WorldHub"
-        Width="1200"
-        Height="750"
-        MinWidth="1000"
-        MinHeight="650"
-        WindowStartupLocation="CenterScreen"
-        Icon="/WorldHub.App;component/Assets/WorldHub.ico">
+<Window
+    x:Class="WorldHub.App.Views.Main.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:svgc="http://sharpvectors.codeplex.com/svgc/"
+    Title="WorldHub"
+    Width="1024"
+    Height="760"
+    MinWidth="900"
+    MinHeight="650"
+    WindowStartupLocation="CenterScreen"
+    ResizeMode="CanResize"
+    Background="#0E1117"
+    Foreground="#F2F4F7"
+    UseLayoutRounding="True"
+    SnapsToDevicePixels="True">
 
-    <Window.Resources>
-
-        <Style TargetType="Button">
-
-            <Setter Property="Background"
-                    Value="#18263F"/>
-
-            <Setter Property="Foreground"
-                    Value="#E8EEF8"/>
-
-            <Setter Property="BorderBrush"
-                    Value="#263957"/>
-
-            <Setter Property="BorderThickness"
-                    Value="1"/>
-
-            <Setter Property="FontSize"
-                    Value="13"/>
-
-            <Setter Property="Cursor"
-                    Value="Hand"/>
-
-            <Setter Property="Padding"
-                    Value="12,0"/>
-
-        </Style>
-
-    </Window.Resources>
-
-    <Grid Background="#0B1220">
+    <Grid Background="#0E1117">
 
         <Grid.ColumnDefinitions>
-
-            <ColumnDefinition Width="240"/>
-
+            <ColumnDefinition Width="220"/>
             <ColumnDefinition Width="*"/>
-
         </Grid.ColumnDefinitions>
 
-
         <!-- SIDEBAR -->
+        <Border
+            Grid.Column="0"
+            Background="#151922"
+            BorderBrush="#2A303B"
+            BorderThickness="0,0,1,0">
 
-        <Border Grid.Column="0"
-                Background="#101A2D"
-                BorderBrush="#1D2A42"
-                BorderThickness="0,0,1,0">
+            <Grid>
 
-            <Grid Margin="20">
+                <!-- BRAND -->
+                <StackPanel
+                    Margin="24,22,24,0">
 
-                <Grid.RowDefinitions>
+                    <TextBlock
+                        Text="WorldHub"
+                        FontFamily="Inter"
+                        FontSize="19"
+                        FontWeight="SemiBold"
+                        Foreground="#F2F4F7"/>
 
-                    <RowDefinition Height="Auto"/>
-
-                    <RowDefinition Height="*"/>
-
-                    <RowDefinition Height="Auto"/>
-
-                </Grid.RowDefinitions>
-
-
-                <StackPanel>
-
-                    <TextBlock Text="WORLDHUB"
-                               FontSize="24"
-                               FontWeight="Bold"
-                               Foreground="White"/>
-
-                    <TextBlock Text="Minecraft Co-op"
-                               Margin="0,4,0,0"
-                               FontSize="12"
-                               Foreground="#71809A"/>
+                    <TextBlock
+                        Margin="0,6,0,0"
+                        Text="SERVER MANAGER"
+                        FontFamily="Inter"
+                        FontSize="9"
+                        FontWeight="Medium"
+                        Foreground="#8C95A3"/>
 
                 </StackPanel>
 
+                <!-- NAVIGATION -->
+                <StackPanel
+                    Margin="12,78,12,0">
 
-                <StackPanel Grid.Row="1"
-                            Margin="0,40,0,0">
+                    <!-- МОИ СЕРВЕРЫ -->
+                    <Button
+                        x:Name="ServersNavButton"
+                        Width="196"
+                        Height="38"
+                        Padding="0"
+                        Background="#1A1F29"
+                        BorderThickness="0"
+                        HorizontalContentAlignment="Stretch"
+                        VerticalContentAlignment="Center"
+                        Foreground="#F2F4F7"
+                        Click="ServersNavigationButton_Click">
 
-                    <Button Content="Мои миры"
-                            Height="46"
-                            Margin="0,0,0,8"
-                            Click="MyWorldsButton_Click"/>
+                        <StackPanel
+                            Width="196"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
 
-                    <Button Content="Подключение"
-                        Height="46"
-                        Margin="0,0,0,8"
-                        Click="ConnectionNavigationButton_Click"/>
+                            <svgc:SvgViewbox
+                                Width="18"
+                                Height="18"
+                                Margin="13,0,0,0"
+                                Stretch="Uniform"
+                                Source="/Assets/Icons/server.svg"/>
 
-                    <Button Content="История"
-                            Height="46"
-                            Margin="0,0,0,8"
-                            Click="HistoryNavigationButton_Click"/>
-
-                    <Button Content="Настройки"
-                        Height="46"
-                        Click="SettingsNavigationButton_Click"/>
-
-                </StackPanel>
-
-
-                <Border Grid.Row="2"
-                        Padding="12"
-                        Background="#16233A"
-                        CornerRadius="8">
-
-                    <StackPanel>
-
-                        <TextBlock Text="Состояние"
-                                   FontSize="11"
-                                   Foreground="#71809A"/>
-
-                        <StackPanel Orientation="Horizontal"
-                                    Margin="0,5,0,0">
-
-                            <Ellipse Width="8"
-                                     Height="8"
-                                     Fill="#45D483"
-                                     VerticalAlignment="Center"/>
-
-                            <TextBlock Text=" Готов"
-                                       Foreground="#DCE5F5"
-                                       Margin="5,0,0,0"/>
+                            <TextBlock
+                                x:Name="ServersNavText"
+                                Margin="11,0,0,0"
+                                VerticalAlignment="Center"
+                                Text="Мои серверы"
+                                FontFamily="Inter"
+                                FontSize="13"
+                                FontWeight="Medium"
+                                Foreground="#F2F4F7"/>
 
                         </StackPanel>
 
-                    </StackPanel>
+                    </Button>
 
-                </Border>
+
+                    <!-- ПОДКЛЮЧЕНИЕ -->
+                    <Button
+                        x:Name="ConnectionNavButton"
+                        Width="196"
+                        Height="38"
+                        Margin="0,8,0,0"
+                        Padding="0"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        HorizontalContentAlignment="Stretch"
+                        VerticalContentAlignment="Center"
+                        Foreground="#8C95A3"
+                        Click="ConnectionNavigationButton_Click">
+
+                        <StackPanel
+                            Width="196"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+
+                            <svgc:SvgViewbox
+                                Width="18"
+                                Height="18"
+                                Margin="13,0,0,0"
+                                Stretch="Uniform"
+                                Source="/Assets/Icons/connection.svg"/>
+
+                            <TextBlock
+                                x:Name="ConnectionNavText"
+                                Margin="11,0,0,0"
+                                VerticalAlignment="Center"
+                                Text="Подключение"
+                                FontFamily="Inter"
+                                FontSize="13"
+                                FontWeight="Medium"
+                                Foreground="#8C95A3"/>
+                        </StackPanel>
+                    </Button>
+
+
+                    <!-- НАСТРОЙКИ -->
+                    <Button
+                        x:Name="SettingsNavButton"
+                        Width="196"
+                        Height="38"
+                        Margin="0,8,0,0"
+                        Padding="0"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        HorizontalContentAlignment="Stretch"
+                        VerticalContentAlignment="Center"
+                        Foreground="#8C95A3"
+                        Click="SettingsNavigationButton_Click">
+
+                        <StackPanel
+                            Width="196"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+
+                            <svgc:SvgViewbox
+                                Width="18"
+                                Height="18"
+                                Margin="13,0,0,0"
+                                Stretch="Uniform"
+                                Source="/Assets/Icons/settings.svg"/>
+
+                            <TextBlock
+                                x:Name="SettingsNavText"
+                                Margin="11,0,0,0"
+                                VerticalAlignment="Center"
+                                Text="Настройки"
+                                FontFamily="Inter"
+                                FontSize="13"
+                                FontWeight="Medium"
+                                Foreground="#8C95A3"/>
+
+                        </StackPanel>
+
+                    </Button>
+
+                </StackPanel>
 
             </Grid>
 
         </Border>
 
+        <!-- CONTENT -->
+        <Grid
+            Grid.Column="1"
+            Margin="32,0,32,32">
 
-        <!-- MAIN -->
-
-        <Grid Grid.Column="1"
-              Margin="32">
-
-            <Grid.RowDefinitions>
-
-                <RowDefinition Height="Auto"/>
-
-                <RowDefinition Height="*"/>
-
-            </Grid.RowDefinitions>
-
-
-            <!-- HEADER -->
-
-            <StackPanel>
-
-                <TextBlock x:Name="PageTitleText"
-                           Text="Мои миры"
-                           FontSize="30"
-                           FontWeight="SemiBold"
-                           Foreground="White"/>
-
-                <TextBlock x:Name="PageDescriptionText"
-                           Text="Управляйте мирами, версиями и подключениями"
-                           Margin="0,6,0,0"
-                           FontSize="14"
-                           Foreground="#71809A"/>
-
-            </StackPanel>
-
-
-            <!-- CONTENT -->
-
-            <Grid Grid.Row="1"
-                Margin="0,30,0,0">
-
-                <viewsWorlds:WorldsView x:Name="WorldsPage"/>
-
-                <viewsHistory:HistoryView x:Name="HistoryPage" Visibility="Collapsed"/>
-
-                <viewsSettings:SettingsView x:Name="SettingsPage" Visibility="Collapsed"/>
-
-                <viewsConnection:ConnectionView x:Name="ConnectionPage" Visibility="Collapsed"/>
-
-            </Grid>
+            <ContentControl
+                x:Name="ContentHost"/>
 
         </Grid>
 

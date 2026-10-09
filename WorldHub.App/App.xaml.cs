@@ -1,242 +1,207 @@
-﻿using System.IO;
+using System.IO;
 using System.Windows;
-using WorldHub.App.Services.Diagnostics;
-using WorldHub.App.Services.Identity;
 using WorldHub.App.Services.Network;
 using WorldHub.App.Services.Settings;
+using WorldHub.App.Services.Update;
 using WorldHub.App.Views.Main;
-using WorldHub.App.Services.Application;
-using WorldHub.Sync.Hashing;
+using WorldHub.Infrastructure.Google;
+using WorldHub.Infrastructure.Minecraft;
 using WorldHub.Infrastructure.Storage;
-using WorldHub.Network.Minecraft;
+using WorldHub.Network.Protocol;
 using WorldHub.Network.Providers;
 using WorldHub.Network.Services;
 using WorldHub.Sync.Services;
-using WorldHub.Sync.Transfer;
 
 namespace WorldHub.App;
 
 public partial class App : Application
 {
-    private const int DefaultNetworkPort = 27072;
-    private const int DefaultModPort = 27071;
-
-    private MinecraftBridgeListener? _minecraftBridgeListener;
     private WorldHubNetworkService? _worldHubNetworkService;
 
-    protected override void OnStartup(StartupEventArgs e)
+    protected override void OnStartup(
+        StartupEventArgs e)
     {
-        DebugConsole.Initialize();
-        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
-        {
-            File.WriteAllText(
-                "startup-error.txt",
-                args.ExceptionObject.ToString());
-        };
-        DebugConsole.Log("WorldHub starting...");
+        WorldHub.App.Services.Diagnostics.DebugConsole.Initialize();
         base.OnStartup(e);
 
-        var networkPort = GetPortArgument(
-            e.Args,
-            "--network-port",
-            DefaultNetworkPort);
+        ShutdownMode =
+            ShutdownMode.OnMainWindowClose;
 
-        var modPort = GetPortArgument(
-            e.Args,
-            "--mod-port",
-            DefaultModPort);
-
-        DebugConsole.Log(
-            $"WorldHub ports: network={networkPort}, mod={modPort}");
-
-        var appSettingsService =
+        var settingsService =
             new AppSettingsService();
 
         var dataPath =
-            appSettingsService.GetDataPath();
+            settingsService.GetDataPath();
 
-        var worldsPath = Path.Combine(
-            dataPath,
-            "worlds");
+        var deviceIdentityService =
+            new DeviceIdentityService(dataPath);
 
-        var snapshotsPath = Path.Combine(
-            dataPath,
-            "snapshots");
+        var deviceId =
+            deviceIdentityService.GetDeviceId();
 
-        var ownershipPath = Path.Combine(
-            dataPath,
-            "ownership");
+        var appVersionService =
+            new AppVersionService();
 
-        var worldRepository =
-            new JsonWorldRepository(worldsPath);
+        var radminVpnDetector =
+            new RadminVpnDetector();
 
-        var snapshotRepository =
-            new JsonSnapshotRepository(snapshotsPath);
+        var localParticipantProvider =
+            new LocalParticipantProvider(
+                deviceIdentityService,
+                settingsService,
+                appVersionService,
+                radminVpnDetector);
 
-        var snapshotStorage =
-            new SnapshotFileStorage(snapshotsPath);
+        var googleAuthService =
+            new GoogleAuthService(dataPath);
 
-        var worldHashService =
-            new WorldHashService();
+        var googleDriveClient =
+            new GoogleDriveClient(googleAuthService);
 
-        var ownershipRepository =
-            new JsonWorldOwnershipRepository(ownershipPath);
+        var googleDriveStatusCache =
+            new GoogleDriveStatusCache();
 
-        var worldService =
-            new WorldService(worldRepository);
+        googleDriveStatusCache.PreInitialize(
+            googleAuthService.HasSavedToken());
 
-        var snapshotService =
-            new SnapshotService(
-                snapshotStorage,
-                snapshotRepository,
-                worldHashService,
-                worldRepository);
-
-        var worldDeletionService =
-            new WorldDeletionService(
-                worldRepository,
-                ownershipRepository,
-                snapshotService);
-
-        var worldAppService =
-            new WorldAppService(
-                worldService,
-                snapshotService);
-
-        var snapshotAppService =
-            new SnapshotAppService(snapshotService);
-
-        var localPlayerIdentity =
-            new LocalPlayerIdentity(
-                Guid.Parse(
-                    "11111111-1111-1111-1111-111111111111"));
-
-        var networkProvider = new TcpNetworkProvider();
+        var networkProvider =
+            new TcpNetworkProvider();
 
         var networkService =
             new NetworkService(networkProvider);
 
-        var receivedWorldsPath =
+        // === Репозитории и сервисы, которые нужны WorldHubNetworkService ===
+
+        var worldHubServersPath =
             Path.Combine(
                 dataPath,
-                "received-worlds");
+                "worldhub-servers");
 
-        var snapshotTransferService =
-            new SnapshotTransferService(
-                snapshotRepository,
-                snapshotService,
-                worldRepository);
+        var worldHubServerRepository =
+            new JsonWorldHubServerRepository(
+                worldHubServersPath);
 
-        var worldTransferOrchestrator =
-            new WorldTransferOrchestrator(
-                networkService,
-                snapshotRepository,
-                worldService,
-                snapshotService,
-                snapshotTransferService,
-                receivedWorldsPath,
-                localPlayerIdentity.PlayerId);
+        var worldHubServerService =
+            new WorldHubServerService(
+                worldHubServerRepository);
+
+        // === Теперь создаём WorldHubNetworkService ===
 
         _worldHubNetworkService =
             new WorldHubNetworkService(
                 networkService,
-                worldTransferOrchestrator,
-                networkPort);
+                networkProvider,
+                deviceId,
+                () => settingsService.GetUserName(),
+                () => appVersionService.GetVersion(),
+                () => googleDriveStatusCache.GetStatusString(),
+                async cancellationToken =>
+                {
+                    try
+                    {
+                        if (!googleAuthService.HasSavedToken())
+                        {
+                            return null;
+                        }
 
-        var mainWindow = new MainWindow(
-            worldAppService,
-            snapshotAppService,
-            worldDeletionService,
-            localPlayerIdentity,
-            _worldHubNetworkService,
-            worldTransferOrchestrator,
-            dataPath);
+                        return await googleDriveClient
+                            .GetAccountEmailAsync(cancellationToken);
+                    }
+                    catch
+                    {
+                        return null;
+                    }
+                },
+                async (remoteDeviceId, cancellationToken) =>
+                {
+                    try
+                    {
+                        var server = await worldHubServerService
+                            .FindByParticipantDeviceIdAsync(
+                                remoteDeviceId,
+                                cancellationToken);
 
-        worldTransferOrchestrator.SetTransferConfirmationHandler(
-            mainWindow.ShowIncomingTransferConfirmationAsync);
+                        if (server is null)
+                        {
+                            return new ServerInfo(null, null);
+                        }
 
-        worldTransferOrchestrator.SetTransferCompletedHandler(
-            mainWindow.RefreshDataAsync);
+                        return new ServerInfo(
+                            server.GoogleDriveFolderId,
+                            server.GoogleDriveOwnerEmail);
+                    }
+                    catch
+                    {
+                        return new ServerInfo(null, null);
+                    }
+                });
 
         _worldHubNetworkService.Start();
 
+        // Фоновая проверка статуса Drive при старте.
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var result =
+                    await googleDriveClient.CheckDriveAccessAsync();
 
+                googleDriveStatusCache.Update(result);
+            }
+            catch
+            {
+                // Тихо: если проверка не удалась, статус останется Unknown.
+            }
+        });
 
+        // === Остальные сервисы ===
 
-        mainWindow.Show();
+        var serversPath =
+            Path.Combine(
+                dataPath,
+                "servers");
+
+        var serverRepository =
+            new JsonServerRepository(
+                serversPath);
+
+        var serverService =
+            new ServerService(
+                serverRepository);
+
+        var serverDetector = new ServerDetector();
+
+        var processLauncher = new ServerProcessLauncher();
+
+        var processManager =
+            new DedicatedServerProcessManager(
+                processLauncher);
+
+        var mainWindow = new MainWindow(
+            serverService,
+            worldHubServerService,
+            serverDetector,
+            processManager,
+            radminVpnDetector,
+            _worldHubNetworkService,
+            settingsService,
+            googleDriveClient,
+            googleDriveStatusCache,
+            localParticipantProvider,
+            deviceId,
+            appVersionService);
 
         MainWindow = mainWindow;
 
-        var worldHubSessionService =
-            new WorldHubSessionService(
-                worldAppService,
-                snapshotAppService,
-                localPlayerIdentity,
-                mainWindow.RefreshDataAsync);
-
-        _minecraftBridgeListener =
-            new MinecraftBridgeListener(
-                modPort,
-                message => worldHubSessionService.HandleSessionEndedAsync(message),
-                DebugConsole.Log,
-                DebugConsole.Error);
-
-        _minecraftBridgeListener.Start();
-
-        DebugConsole.Log(
-            "WorldHub TCP bridge started.");
-
-        DebugConsole.Log(
-            "WorldHub UI initialized.");
+        mainWindow.Show();
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
-        DebugConsole.Log(
-            "WorldHub shutting down...");
-
-        _minecraftBridgeListener?.Dispose();
-        _minecraftBridgeListener = null;
-
         _worldHubNetworkService?.Dispose();
         _worldHubNetworkService = null;
-
-        DebugConsole.Close();
+        WorldHub.App.Services.Diagnostics.DebugConsole.Close();
 
         base.OnExit(e);
-    }
-
-    private static int GetPortArgument(
-        string[] arguments,
-        string argumentName,
-        int defaultPort)
-    {
-        var prefix = argumentName + "=";
-
-        foreach (var argument in arguments)
-        {
-            if (!argument.StartsWith(
-                    prefix,
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var value = argument[prefix.Length..];
-
-            if (int.TryParse(value, out var port) &&
-                port is >= 1 and <= 65535)
-            {
-                return port;
-            }
-
-            DebugConsole.Error(
-                $"Invalid port argument: {argument}. " +
-                $"Using default port {defaultPort}.");
-
-            return defaultPort;
-        }
-
-        return defaultPort;
     }
 }

@@ -269,8 +269,7 @@ public partial class DialogWindow : Window
 
     private static void RestartApplication()
     {
-        var executablePath =
-            Environment.ProcessPath;
+        var executablePath = Environment.ProcessPath;
 
         if (string.IsNullOrWhiteSpace(executablePath))
         {
@@ -278,14 +277,92 @@ public partial class DialogWindow : Window
             return;
         }
 
-        Process.Start(
-            new ProcessStartInfo
+        var currentPid = Environment.ProcessId;
+
+        var escapedPath =
+            executablePath.Replace("'", "''");
+
+        var script =
+            $"Wait-Process -Id {currentPid} -ErrorAction SilentlyContinue; " +
+            $"Start-Process -FilePath '{escapedPath}'";
+
+        var started = false;
+
+        try
+        {
+            Process.Start(
+                new ProcessStartInfo
+                {
+                    FileName = "powershell.exe",
+                    Arguments =
+                        $"-NoProfile -WindowStyle Hidden -Command \"{script}\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                });
+
+            started = true;
+        }
+        catch
+        {
+            // Не удалось запустить powershell.
+        }
+
+        if (!started)
+        {
+            var owner = Application.Current.MainWindow;
+
+            if (owner is not null)
             {
-                FileName = executablePath,
-                UseShellExecute = true
-            });
+                MessageBox.Show(
+                    owner,
+                    "WorldHub не удалось перезапустить автоматически.\n\n" +
+                    "Запустите приложение вручную.",
+                    "WorldHub",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+        }
 
         Application.Current.Shutdown();
+    }
+
+    public static bool ShowRestartRequired(
+        Window owner,
+        string newPath)
+    {
+        var dialog =
+            new DialogWindow(
+                "Перенос завершён",
+                "Все данные WorldHub успешно перенесены.\n\n" +
+                $"Новое расположение:\n{newPath}\n\n" +
+                "Старая папка WorldHub удалена.\n\n" +
+                "WorldHub нужно перезапустить, чтобы службы " +
+                "подключились к новому расположению.",
+                DialogMode.Completed,
+                owner);
+
+        dialog.IconText.Text =
+            "✓";
+
+        dialog.IconText.Foreground =
+            new SolidColorBrush(
+                Color.FromRgb(104, 211, 145));
+
+        dialog.IconBorder.Background =
+            new SolidColorBrush(
+                Color.FromRgb(18, 55, 43));
+
+        dialog.IconBorder.BorderBrush =
+            new SolidColorBrush(
+                Color.FromRgb(42, 111, 80));
+
+        dialog.SecondaryButton.Visibility =
+            Visibility.Collapsed;
+
+        dialog.PrimaryButton.Content =
+            "Перезапустить";
+
+        return dialog.ShowDialog() == true;
     }
 
     private enum DialogMode

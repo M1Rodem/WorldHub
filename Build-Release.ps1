@@ -17,7 +17,6 @@ function Invoke-CommandChecked(
     [string]$Description
 )
 {
-    Write-Host """WorldHub-portable-v$newVersion.zip"
     Write-Host $Description -ForegroundColor Yellow
 
     & $Command
@@ -32,44 +31,38 @@ function Invoke-CommandChecked(
 try
 {
     $root =
-        Split-Path `
-            -Parent `
+        Split-Path 
+            -Parent 
             $MyInvocation.MyCommand.Path
 
 
     $versionFile =
-        Join-Path `
-            $root `
+        Join-Path 
+            $root 
             "Version.props"
 
 
     $artifactsPath =
-        Join-Path `
-            $root `
+        Join-Path 
+            $root 
             "artifacts"
 
 
     $releasePath =
-        Join-Path `
-            $root `
+        Join-Path 
+            $root 
             "release"
 
 
     $updaterPath =
-        Join-Path `
-            $root `
+        Join-Path 
+            $root 
             "updater-publish"
 
 
-    $minecraftPath =
-        Join-Path `
-            $root `
-            "WorldHub.Minecraft"
-
-
     $installerScript =
-        Join-Path `
-            $root `
+        Join-Path 
+            $root 
             ".\Installer\WorldHub.iss"
 
 
@@ -90,10 +83,33 @@ try
     }
 
 
+    if(-not(Get-Command dotnet -ErrorAction SilentlyContinue))
+    {
+        throw "dotnet CLI is not installed or not in PATH."
+    }
+
+
+    $isccCandidates = @(
+        (Get-Command iscc.exe -ErrorAction SilentlyContinue)?.Source,
+        "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe",
+        "${env:ProgramFiles}\Inno Setup 7\ISCC.exe",
+        "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+        "${env:ProgramFiles}\Inno Setup 6\ISCC.exe",
+        "E:\Inno Setup 7\ISCC.exe"
+    ) | Where-Object { $_ -and (Test-Path $_) }
+
+    $iscc = $isccCandidates | Select-Object -First 1
+
+    if(-not $iscc)
+    {
+        throw "Inno Setup compiler (ISCC.exe) not found."
+    }
+
+
 
     $currentVersion =
-        Select-String `
-            -Path $versionFile `
+        Select-String 
+            -Path $versionFile 
             -Pattern '<WorldHubVersion>(.*?)</WorldHubVersion>' |
         ForEach-Object {
             $_.Matches.Groups[1].Value
@@ -141,9 +157,9 @@ try
 
 
 
-    Copy-Item `
-        $versionFile `
-        $backup `
+    Copy-Item 
+        $versionFile 
+        $backup 
         -Force
 
 
@@ -155,24 +171,24 @@ try
         # VERSION
         #
 
-        Write-Step "[1/11] Updating version"
+        Write-Step "[1/9] Updating version"
 
 
         $content =
-            Get-Content `
-                $versionFile `
+            Get-Content 
+                $versionFile 
                 -Raw
 
 
         $content =
-            $content -replace `
+            $content -replace 
             '<WorldHubVersion>.*?</WorldHubVersion>',
             "<WorldHubVersion>$newVersion</WorldHubVersion>"
 
 
-        Set-Content `
-            -Path $versionFile `
-            -Value $content `
+        Set-Content 
+            -Path $versionFile 
+            -Value $content 
             -Encoding UTF8
 
 
@@ -181,7 +197,7 @@ try
         # CLEAN
         #
 
-        Write-Step "[2/11] Cleaning"
+        Write-Step "[2/9] Cleaning"
 
 
         dotnet clean
@@ -191,8 +207,8 @@ try
         Write-Host "Restoring packages for win-x64..." -ForegroundColor Yellow
 
 
-        dotnet restore `
-            "$root\WorldHub.App\WorldHub.App.csproj" `
+        dotnet restore 
+            "$root\WorldHub.App\WorldHub.App.csproj" 
             -r win-x64
 
 
@@ -200,7 +216,7 @@ try
         # FOLDERS
         #
 
-        Write-Step "[3/11] Preparing folders"
+        Write-Step "[3/9] Preparing folders"
 
 
         foreach($folder in @(
@@ -210,9 +226,9 @@ try
         {
             if(Test-Path $folder)
             {
-                Remove-Item `
-                    $folder `
-                    -Recurse `
+                Remove-Item 
+                    $folder 
+                    -Recurse 
                     -Force
             }
         }
@@ -220,15 +236,15 @@ try
 
         if(Test-Path $artifactsPath)
         {
-            Remove-Item `
-                $artifactsPath `
-                -Recurse `
+            Remove-Item 
+                $artifactsPath 
+                -Recurse 
                 -Force
         }
 
 
-        New-Item `
-            -ItemType Directory `
+        New-Item 
+            -ItemType Directory 
             -Path $artifactsPath |
         Out-Null
 
@@ -238,21 +254,21 @@ try
         # APP
         #
 
-        Write-Step "[4/11] Publishing WorldHub.App"
+        Write-Step "[4/9] Publishing WorldHub.App"
 
 
-        dotnet publish `
-            "$root\WorldHub.App\WorldHub.App.csproj" `
-            -c Release `
-            -r win-x64 `
-            --self-contained true `
+        dotnet publish 
+            "$root\WorldHub.App\WorldHub.App.csproj" 
+            -c Release 
+            -r win-x64 
+            --self-contained true 
             -o $releasePath
 
 
 
         $appExe =
-            Join-Path `
-                $releasePath `
+            Join-Path 
+                $releasePath 
                 "WorldHub.App.exe"
 
 
@@ -267,21 +283,21 @@ try
         # UPDATER
         #
 
-        Write-Step "[5/11] Publishing updater"
+        Write-Step "[5/9] Publishing updater"
 
 
-        dotnet publish `
-            "$root\WorldHub.Updater\WorldHub.Updater.csproj" `
-            -c Release `
-            -r win-x64 `
-            --self-contained true `
+        dotnet publish 
+            "$root\WorldHub.Updater\WorldHub.Updater.csproj" 
+            -c Release 
+            -r win-x64 
+            --self-contained true 
             -o $updaterPath
 
 
 
-        Copy-Item `
-            "$updaterPath\WorldHub.Updater.exe" `
-            $releasePath `
+        Copy-Item 
+            "$updaterPath\WorldHub.Updater.exe" 
+            $releasePath 
             -Force
 
 
@@ -290,7 +306,7 @@ try
         # VERSION CHECK
         #
 
-        Write-Step "[6/11] Checking version"
+        Write-Step "[6/9] Checking version"
 
 
         $version =
@@ -311,27 +327,27 @@ try
         # SMOKE TEST
         #
 
-        Write-Step "[7/11] Testing application"
+        Write-Step "[7/9] Testing application"
 
 
         $process =
-            Start-Process `
-                $appExe `
-                -WorkingDirectory $releasePath `
+            Start-Process 
+                $appExe 
+                -WorkingDirectory $releasePath 
                 -PassThru
 
 
-        Start-Sleep 5
+        Start-Sleep -Seconds 5
 
 
         if($process.HasExited)
         {
-            throw "Application exited."
+            throw "Application exited prematurely. Exit code: $($process.ExitCode)"
         }
 
 
-        Stop-Process `
-            $process.Id `
+        Stop-Process 
+            -Id $process.Id 
             -Force
 
 
@@ -340,17 +356,17 @@ try
         # PORTABLE
         #
 
-        Write-Step "[8/11] Creating portable"
+        Write-Step "[8/9] Creating portable"
 
 
         $portable =
-            Join-Path `
-                $artifactsPath `
+            Join-Path 
+                $artifactsPath 
                  "WorldHub-portable-v$newVersion.zip"
 
 
-        Compress-Archive `
-            "$releasePath\*" `
+        Compress-Archive 
+            "$releasePath\*" 
             $portable
 
 
@@ -359,28 +375,18 @@ try
         # INSTALLER
         #
 
-        Write-Step "[9/11] Creating installer"
+        Write-Step "[9/9] Creating installer"
 
 
-        $iscc =
-            "E:\Inno Setup 7\ISCC.exe"
-
-
-        if(-not(Test-Path $iscc))
-        {
-            throw "Inno Setup compiler not found."
-        }
-
-
-        & $iscc `
-            "/dAppVersion=$newVersion" `
+        & $iscc 
+            "/dAppVersion=$newVersion" 
             $installerScript
 
 
 
         $installer =
-            Join-Path `
-                $artifactsPath `
+            Join-Path 
+                $artifactsPath 
                 "WorldHub-Setup-v$newVersion.exe"
 
 
@@ -393,51 +399,10 @@ try
 
 
         #
-        # MOD
-        #
-
-        Write-Step "[10/11] Building Minecraft mod"
-
-
-        Push-Location $minecraftPath
-
-        .\gradlew.bat clean build
-
-        Pop-Location
-
-
-
-        $jar =
-            Get-ChildItem `
-                "$minecraftPath\build\libs" `
-                -Filter "*.jar" |
-            Where-Object {
-                $_.Name -notlike "*sources*" -and
-                $_.Name -notlike "*dev*"
-            } |
-            Select-Object -First 1
-
-
-
-        if($null -eq $jar)
-        {
-            throw "Minecraft mod jar not found."
-        }
-
-
-
-        Copy-Item `
-            $jar.FullName `
-            $artifactsPath `
-            -Force
-
-
-
-        #
         # DONE
         #
 
-        Write-Step "[11/11] RELEASE COMPLETE"
+        Write-Step "RELEASE COMPLETE"
 
 
         Write-Host ""
@@ -445,16 +410,16 @@ try
 
         Write-Host ""
         Write-Host "Artifacts:"
-        Get-ChildItem `
+        Get-ChildItem 
             $artifactsPath |
         ForEach-Object {
             Write-Host $_.FullName -ForegroundColor Green
         }
 
 
-        Remove-Item `
-            $backup `
-            -Force `
+        Remove-Item 
+            $backup 
+            -Force 
             -ErrorAction SilentlyContinue
 
     }
@@ -462,13 +427,13 @@ try
     {
         if(Test-Path $backup)
         {
-            Copy-Item `
-                $backup `
-                $versionFile `
+            Copy-Item 
+                $backup 
+                $versionFile 
                 -Force
 
-            Remove-Item `
-                $backup `
+            Remove-Item 
+                $backup 
                 -Force
         }
 

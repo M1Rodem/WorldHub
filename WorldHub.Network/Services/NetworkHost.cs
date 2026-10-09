@@ -1,14 +1,20 @@
-﻿using WorldHub.Network.Models;
+using System.Collections.Concurrent;
+using WorldHub.Network.Models;
+using WorldHub.Network.Protocol;
 
 namespace WorldHub.Network.Services;
 
 public sealed class NetworkHost : IDisposable
 {
+    private static readonly TimeSpan ConnectionHandlerTimeout =
+        TimeSpan.FromSeconds(10);
+
     private readonly NetworkService _networkService;
     private readonly int _port;
     private readonly Func<NetworkConnection, CancellationToken, Task> _connectionHandler;
     private readonly Action<string>? _log;
     private readonly Action<string>? _logError;
+    private readonly ConcurrentDictionary<Task, byte> _activeHandlers = new();
 
     private CancellationTokenSource? _cancellationTokenSource;
     private Task? _listenerTask;
@@ -54,67 +60,148 @@ public sealed class NetworkHost : IDisposable
 
     private async Task ListenLoopAsync(CancellationToken cancellationToken)
     {
-        while (!cancellationToken.IsCancellationRequested)
+        NetworkListener? listener = null;
+
+        try
         {
-            try
+            listener = await _networkService.ListenAsync(_port, cancellationToken);
+            _log?.Invoke($"WorldHub network listener started on port {_port}.");
+
+            while (!cancellationToken.IsCancellationRequested)
             {
-                _log?.Invoke(
-                    $"Waiting for WorldHub connection on port {_port}...");
-
-                await using var connection =
-                    await _networkService.AcceptAsync(
-                        _port,
-                        cancellationToken);
-
-                _log?.Invoke(
-                    "WorldHub network handshake accepted successfully.");
+                NetworkConnection? connection = null;
 
                 try
                 {
-                    await _connectionHandler(connection, cancellationToken);
-                }
-                catch (EndOfStreamException)
-                {
                     _log?.Invoke(
-                        "WorldHub network connection closed without transfer.");
+                        $"Waiting for WorldHub connection on port {_port}...");
+
+                    connection = await listener.AcceptAsync(cancellationToken);
                 }
-                catch (InvalidDataException exception)
+                catch (OperationCanceledException)
                 {
-                    _logError?.Invoke(
-                        $"WorldHub transfer protocol error: {exception.Message}");
+                    break;
                 }
                 catch (Exception exception)
                 {
                     _logError?.Invoke(
-                        $"WorldHub incoming transfer failed: {exception}");
+                        $"WorldHub network listener error: {exception}");
+
+                    if (!cancellationToken.IsCancellationRequested)
+                    {
+                        try
+                        {
+                            await Task.Delay(
+                                TimeSpan.FromSeconds(1),
+                                cancellationToken);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            break;
+                        }
+                    }
+
+                    continue;
                 }
+
+                try
+                {
+                    await NetworkHandshake.AcceptHelloAsync(
+                        connection,
+                        cancellationToken);
+                }
+                catch (Exception exception)
+                {
+                    _logError?.Invoke(
+                        $"WorldHub handshake negotiation failed: {exception.Message}");
+
+                    await connection.DisposeAsync();
+                    continue;
+                }
+
+                _log?.Invoke(
+                    "WorldHub network handshake accepted successfully.");
+
+                // Обработка соединения запускается в фоне с отслеживанием,
+                // чтобы молчащий клиент не блокировал приём следующих.
+                TrackHandler(connection, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Корректная отмена
+        }
+        catch (Exception exception)
+        {
+            _logError?.Invoke(
+                $"WorldHub network listener fatal error: {exception}");
+        }
+        finally
+        {
+            if (listener is not null)
+            {
+                await listener.DisposeAsync();
+            }
+
+            _log?.Invoke("WorldHub network listener stopped.");
+        }
+    }
+
+    private void TrackHandler(
+        NetworkConnection connection,
+        CancellationToken cancellationToken)
+    {
+        var task = HandleConnectionInBackgroundAsync(
+            connection,
+            cancellationToken);
+
+        _activeHandlers.TryAdd(task, 0);
+
+        _ = task.ContinueWith(
+            completed => _activeHandlers.TryRemove(completed, out _),
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+    }
+
+    private async Task HandleConnectionInBackgroundAsync(
+        NetworkConnection connection,
+        CancellationToken cancellationToken)
+    {
+        await using (connection)
+        {
+            using var handlerCts =
+                CancellationTokenSource.CreateLinkedTokenSource(
+                    cancellationToken);
+
+            handlerCts.CancelAfter(ConnectionHandlerTimeout);
+
+            try
+            {
+                await _connectionHandler(
+                    connection,
+                    handlerCts.Token);
             }
             catch (OperationCanceledException)
             {
-                break;
+                // Таймаут handler'а или завершение приложения.
+            }
+            catch (EndOfStreamException)
+            {
+                _log?.Invoke(
+                    "WorldHub network connection closed without transfer.");
+            }
+            catch (InvalidDataException exception)
+            {
+                _logError?.Invoke(
+                    $"WorldHub transfer protocol error: {exception.Message}");
             }
             catch (Exception exception)
             {
                 _logError?.Invoke(
-                    $"WorldHub network listener error: {exception}");
-
-                if (!cancellationToken.IsCancellationRequested)
-                {
-                    try
-                    {
-                        await Task.Delay(
-                            TimeSpan.FromSeconds(1),
-                            cancellationToken);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        break;
-                    }
-                }
+                    $"WorldHub incoming transfer failed: {exception}");
             }
         }
-
-        _log?.Invoke("WorldHub network listener stopped.");
     }
 
     public void Dispose()
@@ -128,11 +215,37 @@ public sealed class NetworkHost : IDisposable
             return;
         }
 
-        cancellationTokenSource.Cancel();
-        cancellationTokenSource.Dispose();
+        try
+        {
+            cancellationTokenSource.Cancel();
+        }
+        catch
+        {
+            // ignore
+        }
 
-        _listenerTask = null;
+        try
+        {
+            if (_listenerTask is not null)
+            {
+                _listenerTask.Wait(TimeSpan.FromSeconds(2));
+            }
 
-        _log?.Invoke("WorldHub network service disposed.");
+            var handlers = _activeHandlers.Keys.ToArray();
+            if (handlers.Length > 0)
+            {
+                Task.WaitAll(handlers, TimeSpan.FromSeconds(3));
+            }
+        }
+        catch
+        {
+            // ignore wait timeouts
+        }
+        finally
+        {
+            cancellationTokenSource.Dispose();
+            _listenerTask = null;
+            _log?.Invoke("WorldHub network service disposed.");
+        }
     }
 }

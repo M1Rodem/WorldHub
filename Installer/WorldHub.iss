@@ -6,7 +6,7 @@
 
 [Setup]
 
-AppId={{WorldHub-App}}
+AppId={{7E1E67C9-0D2F-4F4B-9B28-A4F79F88C0E5}}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher=WorldHub
