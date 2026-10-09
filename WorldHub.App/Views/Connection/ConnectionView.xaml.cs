@@ -380,12 +380,14 @@ public partial class ConnectionView : UserControl
         {
             var token = _pageCts?.Token ?? CancellationToken.None;
 
+            var serverId = _selectedServerId.Value;
+
             await _worldHubServerService.DeleteWithCleanupAsync(
-                _selectedServerId.Value,
+                serverId,
                 _serverService,
                 token);
 
-            _checkService.RemoveGate(_selectedServerId.Value);
+            _checkService.RemoveGate(serverId);
 
             _selectedServerId = null;
             _currentServer = null;
