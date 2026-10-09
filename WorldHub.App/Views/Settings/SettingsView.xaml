@@ -65,46 +65,61 @@
                     Margin="0,12,0,24"
                     Padding="20">
 
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
+                    <StackPanel>
 
-                        <Border
-                            Grid.Column="0"
-                            Width="40"
-                            Height="40"
-                            CornerRadius="10"
-                            Background="{DynamicResource AccentPurpleSubtleBrush}"
-                            BorderBrush="{DynamicResource AccentPurpleBorderBrush}"
-                            BorderThickness="1"
-                            VerticalAlignment="Center">
-                            <svgc:SvgViewbox
-                                Width="20"
-                                Height="20"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Stretch="Uniform"
-                                Source="/Assets/Icons/server.svg"/>
-                        </Border>
+                        <TextBlock
+                            Text="О программе"
+                            FontFamily="Inter, Segoe UI, sans-serif"
+                            FontSize="15"
+                            FontWeight="SemiBold"
+                            Foreground="{DynamicResource TextPrimaryBrush}"/>
 
-                        <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
-                            <TextBlock
-                                Text="WorldHub"
-                                FontFamily="Inter, Segoe UI, sans-serif"
-                                FontSize="15"
-                                FontWeight="SemiBold"
-                                Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        <TextBlock
+                            Margin="0,12,0,0"
+                            Text="WorldHub"
+                            FontFamily="Inter, Segoe UI, sans-serif"
+                            FontSize="14"
+                            FontWeight="SemiBold"
+                            Foreground="{DynamicResource TextPrimaryBrush}"/>
+
+                        <TextBlock
+                            Margin="0,5,0,0"
+                            Text="Менеджер локальных Minecraft Dedicated Server и облачной синхронизации. Управляет группами участников через Radmin VPN и общими папками Google Drive."
+                            FontFamily="Inter, Segoe UI, sans-serif"
+                            FontSize="12"
+                            Foreground="{DynamicResource TextSecondaryBrush}"
+                            TextWrapping="Wrap"/>
+
+                        <StackPanel
+                            Margin="0,16,0,0"
+                            Orientation="Horizontal">
 
                             <TextBlock
-                                Margin="0,3,0,0"
-                                Text="Менеджер локальных Minecraft Dedicated Server и облачной синхронизации"
+                                Text="GitHub: "
                                 FontFamily="Inter, Segoe UI, sans-serif"
                                 FontSize="12"
-                                Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                Foreground="{DynamicResource TextMutedBrush}"/>
+
+                            <Button
+                                x:Name="GitHubLinkButton"
+                                Cursor="Hand"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Padding="0"
+                                Click="GitHubLinkButton_Click">
+
+                                <TextBlock
+                                    Text="https://github.com/M1Rodem/WorldHub"
+                                    FontFamily="Inter, Segoe UI, sans-serif"
+                                    FontSize="12"
+                                    Foreground="{DynamicResource AccentPurpleBrush}"
+                                    TextDecorations="Underline"/>
+
+                            </Button>
+
                         </StackPanel>
-                    </Grid>
+
+                    </StackPanel>
 
                 </Border>
 

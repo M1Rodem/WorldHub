@@ -172,26 +172,6 @@
 
                 </StackPanel>
 
-                <!-- SIDEBAR FOOTER -->
-                <Border
-                    VerticalAlignment="Bottom"
-                    Margin="12,0,12,16"
-                    Padding="10,8"
-                    Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderSubtleBrush}"
-                    BorderThickness="1"
-                    CornerRadius="6">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Ellipse Width="6" Height="6" Fill="{DynamicResource AccentGreenBrush}" VerticalAlignment="Center" Margin="2,0,8,0"/>
-                        <TextBlock
-                            Text="WorldHub • v1.0"
-                            FontFamily="Inter, Segoe UI, sans-serif"
-                            FontSize="11"
-                            FontWeight="Medium"
-                            Foreground="{DynamicResource TextSecondaryBrush}"/>
-                    </StackPanel>
-                </Border>
-
             </Grid>
 
         </Border>

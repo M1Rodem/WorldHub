@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Windows;
 using System.Windows.Controls;
 using WorldHub.App.Services.Network;
 using WorldHub.App.Services.Settings;
@@ -33,5 +35,27 @@ public partial class SettingsView : UserControl
         ProfileSection.Initialize(appSettingsService, googleDriveClient, googleDriveStatusCache);
         StorageSection.Initialize(appSettingsService, _dataMigrationService);
         UpdateSection.Initialize(appVersionService, _updaterProcessService);
+    }
+
+    private const string GitHubUrl =
+        "https://github.com/M1Rodem/WorldHub";
+
+    private void GitHubLinkButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        try
+        {
+            Process.Start(
+                new ProcessStartInfo
+                {
+                    FileName = GitHubUrl,
+                    UseShellExecute = true
+                });
+        }
+        catch
+        {
+            // Если браузер не удалось открыть — молча игнорируем.
+        }
     }
 }
