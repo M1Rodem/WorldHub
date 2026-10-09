@@ -6,40 +6,33 @@
     Background="Transparent">
 
     <Border
-        Padding="22"
-        Background="#151922"
-        BorderBrush="#2A303B"
-        BorderThickness="1"
-        CornerRadius="8">
+        Style="{StaticResource CardBorder}"
+        Padding="20">
 
         <StackPanel>
 
             <TextBlock
                 Text="Хранилище WorldHub"
-                FontFamily="Inter"
-                FontSize="16"
+                FontFamily="Inter, Segoe UI, sans-serif"
+                FontSize="15"
                 FontWeight="SemiBold"
-                Foreground="#F2F4F7"/>
+                Foreground="{DynamicResource TextPrimaryBrush}"/>
 
             <TextBlock
-                Margin="0,5,0,0"
-                Text="Папка данных"
-                FontFamily="Inter"
+                Margin="0,3,0,0"
+                Text="Локальная папка для хранения конфигураций и данных серверов"
+                FontFamily="Inter, Segoe UI, sans-serif"
                 FontSize="11"
-                FontWeight="Medium"
-                Foreground="#8C95A3"/>
+                Foreground="{DynamicResource TextSecondaryBrush}"/>
 
             <Border
-                Margin="0,7,0,0"
-                Height="42"
-                Background="#1A1F29"
-                BorderBrush="#2A303B"
-                BorderThickness="1"
-                CornerRadius="6">
+                Style="{StaticResource InnerCardBorder}"
+                Margin="0,14,0,0"
+                Height="40">
 
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="32"/>
+                        <ColumnDefinition Width="36"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
@@ -59,9 +52,9 @@
                         VerticalAlignment="Center"
                         TextTrimming="CharacterEllipsis"
                         TextWrapping="NoWrap"
-                        FontFamily="Inter"
+                        FontFamily="Inter, Segoe UI, sans-serif"
                         FontSize="12"
-                        Foreground="#F2F4F7"/>
+                        Foreground="{DynamicResource TextPrimaryBrush}"/>
                 </Grid>
             </Border>
 
@@ -71,30 +64,19 @@
 
                 <Button
                     x:Name="ChangeDataPathButton"
-                    Width="145"
-                    Height="36"
-                    Padding="0"
+                    Style="{StaticResource SecondaryButton}"
+                    Height="34"
+                    Padding="14,0"
                     Content="Изменить папку"
-                    Background="#1A1F29"
-                    BorderBrush="#2A303B"
-                    BorderThickness="1"
-                    Foreground="#F2F4F7"
-                    FontFamily="Inter"
-                    FontSize="12"
                     Click="ChangeDataPathButton_Click"/>
 
                 <Button
                     x:Name="ResetDataPathButton"
-                    Width="100"
-                    Height="36"
+                    Style="{StaticResource SecondaryButton}"
+                    Height="34"
                     Margin="8,0,0,0"
-                    Padding="0"
+                    Padding="14,0"
                     Content="Сбросить"
-                    Background="#1A1F29"
-                    BorderBrush="#2A303B"
-                    Foreground="#F2F4F7"
-                    FontFamily="Inter"
-                    FontSize="12"
                     Click="ResetDataPathButton_Click"/>
             </StackPanel>
 

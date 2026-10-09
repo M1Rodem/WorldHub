@@ -6,16 +6,16 @@ namespace WorldHub.App.Views.Servers;
 public static class ServerStatusUiHelper
 {
     public static readonly Brush RunningBrush =
-        new SolidColorBrush(Color.FromRgb(0x42, 0xC7, 0x83));
+        new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81));
 
     public static readonly Brush BusyBrush =
-        new SolidColorBrush(Color.FromRgb(0x4C, 0x8D, 0xFF));
+        new SolidColorBrush(Color.FromRgb(0x8B, 0x5C, 0xF6));
 
     public static readonly Brush ErrorBrush =
-        new SolidColorBrush(Color.FromRgb(0xE0, 0x5C, 0x5C));
+        new SolidColorBrush(Color.FromRgb(0xF4, 0x3F, 0x5E));
 
     public static readonly Brush StoppedBrush =
-        new SolidColorBrush(Color.FromRgb(0x8C, 0x95, 0xA3));
+        new SolidColorBrush(Color.FromRgb(0x8E, 0x9A, 0xB0));
 
     public static string GetStatusText(ServerStatus status) =>
         status switch

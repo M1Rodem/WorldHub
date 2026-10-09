@@ -2,6 +2,7 @@
     x:Class="WorldHub.App.Views.Connection.ConnectionView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:svgc="http://sharpvectors.codeplex.com/svgc/"
     xmlns:local="clr-namespace:WorldHub.App.Views.Connection"
     Background="Transparent">
 
@@ -12,46 +13,43 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- Заголовок -->
+        <!-- ЗАГОЛОВОК -->
         <StackPanel Margin="0,20,0,24">
             <TextBlock
                 Text="Подключение"
-                FontFamily="Inter"
+                FontFamily="Inter, Segoe UI, sans-serif"
                 FontSize="22"
                 FontWeight="SemiBold"
-                Foreground="#F2F4F7"/>
+                Foreground="{DynamicResource TextPrimaryBrush}"/>
 
             <TextBlock
                 Margin="0,5,0,0"
                 Text="Управление общими пространствами и участниками"
-                FontFamily="Inter"
+                FontFamily="Inter, Segoe UI, sans-serif"
                 FontSize="12"
-                Foreground="#8C95A3"/>
+                Foreground="{DynamicResource TextSecondaryBrush}"/>
         </StackPanel>
 
-        <!-- Выбор и создание -->
+        <!-- ВЫБОР И СОЗДАНИЕ -->
         <Border
             Grid.Row="1"
-            Padding="22"
-            Background="#151922"
-            BorderBrush="#2A303B"
-            BorderThickness="1"
-            CornerRadius="8">
+            Style="{StaticResource CardBorder}"
+            Padding="20">
 
             <StackPanel>
                 <TextBlock
                     Text="WorldHub-серверы"
-                    FontFamily="Inter"
-                    FontSize="16"
+                    FontFamily="Inter, Segoe UI, sans-serif"
+                    FontSize="15"
                     FontWeight="SemiBold"
-                    Foreground="#F2F4F7"/>
+                    Foreground="{DynamicResource TextPrimaryBrush}"/>
 
                 <TextBlock
-                    Margin="0,5,0,16"
+                    Margin="0,4,0,14"
                     Text="Выберите пространство или создайте новое"
-                    FontFamily="Inter"
+                    FontFamily="Inter, Segoe UI, sans-serif"
                     FontSize="11"
-                    Foreground="#8C95A3"/>
+                    Foreground="{DynamicResource TextSecondaryBrush}"/>
 
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -63,16 +61,8 @@
                     <ComboBox
                         x:Name="WorldHubServerComboBox"
                         Grid.Column="0"
-                        Height="42"
-                        Margin="0,0,12,0"
-                        Padding="12,0"
-                        Background="#1A1F29"
-                        BorderBrush="#2A303B"
-                        BorderThickness="1"
-                        Foreground="#F2F4F7"
-                        FontFamily="Inter"
-                        FontSize="13"
-                        VerticalContentAlignment="Center"
+                        Height="38"
+                        Margin="0,0,10,0"
                         SelectedValuePath="Id"
                         SelectionChanged="WorldHubServerComboBox_SelectionChanged">
 
@@ -80,9 +70,9 @@
                             <DataTemplate>
                                 <TextBlock
                                     Text="{Binding Name}"
-                                    FontFamily="Inter"
+                                    FontFamily="Inter, Segoe UI, sans-serif"
                                     FontSize="13"
-                                    Foreground="#F2F4F7"
+                                    Foreground="{DynamicResource TextPrimaryBrush}"
                                     VerticalAlignment="Center"/>
                             </DataTemplate>
                         </ComboBox.ItemTemplate>
@@ -90,44 +80,47 @@
 
                     <Button
                         Grid.Column="1"
-                        Width="114"
-                        Height="42"
-                        Margin="0,0,12,0"
-                        Content="+ Создать"
-                        Background="#4C8DFF"
-                        BorderBrush="#4C8DFF"
-                        Foreground="White"
-                        FontFamily="Inter"
-                        FontSize="12"
-                        Click="CreateWorldHubServerButton_Click"/>
+                        Style="{StaticResource PrimaryButton}"
+                        Height="38"
+                        Width="108"
+                        Margin="0,0,8,0"
+                        Click="CreateWorldHubServerButton_Click">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <svgc:SvgViewbox
+                                Width="12"
+                                Height="12"
+                                Margin="0,0,6,0"
+                                Stretch="Uniform"
+                                Source="/Assets/Icons/plus.svg"/>
+                            <TextBlock
+                                Text="Создать"
+                                VerticalAlignment="Center"
+                                FontFamily="Inter, Segoe UI, sans-serif"
+                                FontSize="12"
+                                FontWeight="Medium"
+                                Foreground="#FFFFFF"/>
+                        </StackPanel>
+                    </Button>
 
                     <Button
                         x:Name="DeleteWorldHubServerButton"
                         Grid.Column="2"
-                        Width="114"
-                        Height="42"
+                        Style="{StaticResource DangerButton}"
+                        Height="38"
+                        Width="92"
                         Content="Удалить"
-                        Background="#1A1F29"
-                        BorderBrush="#2A303B"
-                        BorderThickness="1"
-                        Foreground="#E56B6F"
-                        FontFamily="Inter"
-                        FontSize="12"
                         IsEnabled="False"
                         Click="DeleteWorldHubServerButton_Click"/>
                 </Grid>
             </StackPanel>
         </Border>
 
-        <!-- Содержимое выбранного пространства -->
+        <!-- СОДЕРЖИМОЕ ВЫБРАННОГО ПРОСТРАНСТВА -->
         <Border
             Grid.Row="2"
+            Style="{StaticResource CardBorder}"
             Margin="0,12,0,0"
-            Padding="22"
-            Background="#151922"
-            BorderBrush="#2A303B"
-            BorderThickness="1"
-            CornerRadius="8">
+            Padding="20">
 
             <Grid>
                 <StackPanel
@@ -135,20 +128,38 @@
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center">
 
+                    <Border
+                        Width="48"
+                        Height="48"
+                        CornerRadius="12"
+                        Background="{DynamicResource AccentPurpleSubtleBrush}"
+                        BorderBrush="{DynamicResource AccentPurpleBorderBrush}"
+                        BorderThickness="1"
+                        HorizontalAlignment="Center"
+                        Margin="0,0,0,16">
+                        <svgc:SvgViewbox
+                            Width="22"
+                            Height="22"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Stretch="Uniform"
+                            Source="/Assets/Icons/connection.svg"/>
+                    </Border>
+
                     <TextBlock
                         Text="Выберите WorldHub-сервер"
-                        FontFamily="Inter"
+                        FontFamily="Inter, Segoe UI, sans-serif"
                         FontSize="16"
                         FontWeight="SemiBold"
-                        Foreground="#F2F4F7"
+                        Foreground="{DynamicResource TextPrimaryBrush}"
                         HorizontalAlignment="Center"/>
 
                     <TextBlock
-                        Margin="0,8,0,0"
+                        Margin="0,6,0,0"
                         Text="Здесь будут отображаться участники и состояние подключения."
-                        FontFamily="Inter"
+                        FontFamily="Inter, Segoe UI, sans-serif"
                         FontSize="12"
-                        Foreground="#8C95A3"
+                        Foreground="{DynamicResource TextSecondaryBrush}"
                         TextWrapping="Wrap"
                         TextAlignment="Center"
                         MaxWidth="380"/>
@@ -180,32 +191,43 @@
                             <StackPanel Grid.Column="0">
                                 <TextBlock
                                     x:Name="SelectedServerNameText"
-                                    FontFamily="Inter"
+                                    FontFamily="Inter, Segoe UI, sans-serif"
                                     FontSize="18"
                                     FontWeight="SemiBold"
-                                    Foreground="#F2F4F7"/>
+                                    Foreground="{DynamicResource TextPrimaryBrush}"/>
 
                                 <TextBlock
                                     x:Name="ParticipantCountText"
-                                    Margin="0,4,0,0"
-                                    FontFamily="Inter"
+                                    Margin="0,3,0,0"
+                                    FontFamily="Inter, Segoe UI, sans-serif"
                                     FontSize="12"
-                                    Foreground="#8C95A3"/>
+                                    Foreground="{DynamicResource TextSecondaryBrush}"/>
                             </StackPanel>
 
                             <Button
                                 x:Name="AddParticipantButton"
                                 Grid.Column="1"
-                                Width="170"
-                                Height="36"
-                                Content="+ Добавить участника"
-                                Background="#4C8DFF"
-                                BorderBrush="#4C8DFF"
-                                Foreground="White"
-                                FontFamily="Inter"
-                                FontSize="12"
+                                Style="{StaticResource PrimaryButton}"
+                                Height="34"
+                                Width="168"
                                 VerticalAlignment="Top"
-                                Click="AddParticipantButton_Click"/>
+                                Click="AddParticipantButton_Click">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <svgc:SvgViewbox
+                                        Width="12"
+                                        Height="12"
+                                        Margin="0,0,6,0"
+                                        Stretch="Uniform"
+                                        Source="/Assets/Icons/plus.svg"/>
+                                    <TextBlock
+                                        Text="Добавить участника"
+                                        VerticalAlignment="Center"
+                                        FontFamily="Inter, Segoe UI, sans-serif"
+                                        FontSize="12"
+                                        FontWeight="Medium"
+                                        Foreground="#FFFFFF"/>
+                                </StackPanel>
+                            </Button>
                         </Grid>
 
                         <!-- Radmin VPN -->

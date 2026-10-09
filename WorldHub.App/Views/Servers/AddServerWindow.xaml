@@ -4,16 +4,16 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Добавить сервер"
     Width="520"
-    Height="560"
+    Height="540"
     MinWidth="520"
-    MinHeight="560"
+    MinHeight="540"
     WindowStartupLocation="CenterOwner"
     ResizeMode="NoResize"
-    Background="#0E1117"
-    Foreground="#F2F4F7"
+    Background="{DynamicResource AppBackgroundBrush}"
+    Foreground="{DynamicResource TextPrimaryBrush}"
     ShowInTaskbar="False">
 
-    <Grid Margin="32">
+    <Grid Margin="28">
 
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -22,63 +22,51 @@
         </Grid.RowDefinitions>
 
         <!-- HEADER -->
-
         <StackPanel>
-
             <TextBlock
                 Text="Добавить сервер"
-                FontFamily="Inter"
-                FontSize="22"
+                FontFamily="Inter, Segoe UI, sans-serif"
+                FontSize="20"
                 FontWeight="SemiBold"
-                Foreground="#F2F4F7"/>
+                Foreground="{DynamicResource TextPrimaryBrush}"/>
 
             <TextBlock
-                Margin="0,7,0,0"
+                Margin="0,5,0,0"
                 Text="Добавьте локальный Minecraft Dedicated Server"
-                FontFamily="Inter"
+                FontFamily="Inter, Segoe UI, sans-serif"
                 FontSize="12"
-                Foreground="#8C95A3"/>
-
+                Foreground="{DynamicResource TextSecondaryBrush}"/>
         </StackPanel>
 
-
         <!-- FORM -->
-
         <StackPanel
             Grid.Row="1"
-            Margin="0,30,0,0">
+            Margin="0,24,0,0">
 
             <!-- NAME -->
-
             <TextBlock
                 Text="Название"
-                FontFamily="Inter"
-                FontSize="12"
-                Foreground="#8C95A3"/>
+                FontFamily="Inter, Segoe UI, sans-serif"
+                FontSize="11"
+                FontWeight="Medium"
+                Foreground="{DynamicResource TextMutedBrush}"/>
 
             <TextBox
                 x:Name="NameTextBox"
                 Height="38"
-                Margin="0,7,0,20"
+                Margin="0,6,0,16"
                 Padding="10,0"
-                VerticalContentAlignment="Center"
-                Background="#151922"
-                BorderBrush="#2A303B"
-                Foreground="#F2F4F7"
-                FontFamily="Inter"
-                FontSize="13"/>
-
+                VerticalContentAlignment="Center"/>
 
             <!-- LAUNCH FILE -->
-
             <TextBlock
                 Text="Файл запуска"
-                FontFamily="Inter"
-                FontSize="12"
-                Foreground="#8C95A3"/>
+                FontFamily="Inter, Segoe UI, sans-serif"
+                FontSize="11"
+                FontWeight="Medium"
+                Foreground="{DynamicResource TextMutedBrush}"/>
 
-            <Grid Margin="0,7,0,24">
-
+            <Grid Margin="0,6,0,18">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
@@ -89,42 +77,26 @@
                     Height="38"
                     Padding="10,0"
                     VerticalContentAlignment="Center"
-                    IsReadOnly="True"
-                    Background="#151922"
-                    BorderBrush="#2A303B"
-                    Foreground="#F2F4F7"
-                    FontFamily="Inter"
-                    FontSize="12"/>
+                    IsReadOnly="True"/>
 
                 <Button
                     Grid.Column="1"
-                    Width="105"
+                    Style="{StaticResource SecondaryButton}"
+                    Width="98"
                     Height="38"
-                    Margin="10,0,0,0"
+                    Margin="8,0,0,0"
                     Content="Выбрать"
-                    Background="#1A1F29"
-                    BorderBrush="#2A303B"
-                    Foreground="#F2F4F7"
-                    FontFamily="Inter"
-                    FontSize="12"
                     Click="SelectLaunchFileButton_Click"/>
-
             </Grid>
 
-
             <!-- DETECTION -->
-
             <Border
                 x:Name="DetectionPanel"
+                Style="{StaticResource InnerCardBorder}"
                 Padding="16"
-                Background="#151922"
-                BorderBrush="#2A303B"
-                BorderThickness="1"
-                CornerRadius="8"
                 Visibility="Collapsed">
 
                 <Grid>
-
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -133,95 +105,91 @@
                     </Grid.RowDefinitions>
 
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="150"/>
+                        <ColumnDefinition Width="140"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-
                     <!-- MINECRAFT -->
-
                     <TextBlock
                         Grid.Row="0"
                         Grid.Column="0"
                         Text="Minecraft"
-                        FontFamily="Inter"
-                        FontSize="12"
-                        Foreground="#8C95A3"/>
+                        FontFamily="Inter, Segoe UI, sans-serif"
+                        FontSize="11"
+                        FontWeight="Medium"
+                        Foreground="{DynamicResource TextMutedBrush}"/>
 
                     <TextBlock
                         x:Name="MinecraftVersionTextBlock"
                         Grid.Row="0"
                         Grid.Column="1"
                         Text="—"
-                        FontFamily="Inter"
+                        FontFamily="Inter, Segoe UI, sans-serif"
                         FontSize="12"
-                        Foreground="#F2F4F7"/>
-
+                        Foreground="{DynamicResource TextPrimaryBrush}"/>
 
                     <!-- LOADER -->
-
                     <TextBlock
                         Grid.Row="1"
                         Grid.Column="0"
-                        Margin="0,10,0,0"
+                        Margin="0,8,0,0"
                         Text="Загрузчик"
-                        FontFamily="Inter"
-                        FontSize="12"
-                        Foreground="#8C95A3"/>
+                        FontFamily="Inter, Segoe UI, sans-serif"
+                        FontSize="11"
+                        FontWeight="Medium"
+                        Foreground="{DynamicResource TextMutedBrush}"/>
 
                     <TextBlock
                         x:Name="LoaderTextBlock"
                         Grid.Row="1"
                         Grid.Column="1"
-                        Margin="0,10,0,0"
+                        Margin="0,8,0,0"
                         Text="—"
-                        FontFamily="Inter"
+                        FontFamily="Inter, Segoe UI, sans-serif"
                         FontSize="12"
-                        Foreground="#F2F4F7"/>
-
+                        Foreground="{DynamicResource TextPrimaryBrush}"/>
 
                     <!-- LOADER VERSION -->
-
                     <TextBlock
                         Grid.Row="2"
                         Grid.Column="0"
-                        Margin="0,10,0,0"
+                        Margin="0,8,0,0"
                         Text="Версия загрузчика"
-                        FontFamily="Inter"
-                        FontSize="12"
-                        Foreground="#8C95A3"/>
+                        FontFamily="Inter, Segoe UI, sans-serif"
+                        FontSize="11"
+                        FontWeight="Medium"
+                        Foreground="{DynamicResource TextMutedBrush}"/>
 
                     <TextBlock
                         x:Name="LoaderVersionTextBlock"
                         Grid.Row="2"
                         Grid.Column="1"
-                        Margin="0,10,0,0"
+                        Margin="0,8,0,0"
                         Text="—"
-                        FontFamily="Inter"
+                        FontFamily="Inter, Segoe UI, sans-serif"
                         FontSize="12"
-                        Foreground="#F2F4F7"/>
-
+                        Foreground="{DynamicResource TextPrimaryBrush}"/>
 
                     <!-- LAUNCH TYPE -->
-
                     <TextBlock
                         Grid.Row="3"
                         Grid.Column="0"
-                        Margin="0,10,0,0"
+                        Margin="0,8,0,0"
                         Text="Тип запуска"
-                        FontFamily="Inter"
-                        FontSize="12"
-                        Foreground="#8C95A3"/>
+                        FontFamily="Inter, Segoe UI, sans-serif"
+                        FontSize="11"
+                        FontWeight="Medium"
+                        Foreground="{DynamicResource TextMutedBrush}"/>
 
                     <TextBlock
                         x:Name="LaunchTypeTextBlock"
                         Grid.Row="3"
                         Grid.Column="1"
-                        Margin="0,10,0,0"
+                        Margin="0,8,0,0"
                         Text="—"
-                        FontFamily="Inter"
+                        FontFamily="Inter, Segoe UI, sans-serif"
                         FontSize="12"
-                        Foreground="#F2F4F7"/>
+                        Foreground="{DynamicResource TextPrimaryBrush}"/>
 
                 </Grid>
 
@@ -229,35 +197,25 @@
 
         </StackPanel>
 
-
         <!-- ACTIONS -->
-
         <StackPanel
             Grid.Row="2"
             Orientation="Horizontal"
             HorizontalAlignment="Right">
 
             <Button
-                Width="100"
-                Height="38"
-                Margin="0,0,10,0"
+                Style="{StaticResource SecondaryButton}"
+                Width="96"
+                Height="36"
+                Margin="0,0,8,0"
                 Content="Отмена"
-                Background="#1A1F29"
-                BorderBrush="#2A303B"
-                Foreground="#F2F4F7"
-                FontFamily="Inter"
-                FontSize="12"
                 Click="CancelButton_Click"/>
 
             <Button
-                Width="140"
-                Height="38"
+                Style="{StaticResource PrimaryButton}"
+                Width="120"
+                Height="36"
                 Content="Добавить"
-                Background="#4C8DFF"
-                BorderBrush="#2A303B"
-                Foreground="White"
-                FontFamily="Inter"
-                FontSize="12"
                 Click="AddButton_Click"/>
 
         </StackPanel>

@@ -10,12 +10,12 @@
     MinHeight="650"
     WindowStartupLocation="CenterScreen"
     ResizeMode="CanResize"
-    Background="#0E1117"
-    Foreground="#F2F4F7"
+    Background="{DynamicResource AppBackgroundBrush}"
+    Foreground="{DynamicResource TextPrimaryBrush}"
     UseLayoutRounding="True"
     SnapsToDevicePixels="True">
 
-    <Grid Background="#0E1117">
+    <Grid Background="{DynamicResource AppBackgroundBrush}">
 
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="220"/>
@@ -25,71 +25,83 @@
         <!-- SIDEBAR -->
         <Border
             Grid.Column="0"
-            Background="#151922"
-            BorderBrush="#2A303B"
+            Background="{DynamicResource SidebarBackgroundBrush}"
+            BorderBrush="{DynamicResource BorderSubtleBrush}"
             BorderThickness="0,0,1,0">
 
             <Grid>
 
                 <!-- BRAND -->
                 <StackPanel
-                    Margin="24,22,24,0">
+                    Margin="24,24,24,0">
+
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border
+                            Width="26"
+                            Height="26"
+                            CornerRadius="6"
+                            Background="{DynamicResource AccentPurpleSubtleBrush}"
+                            BorderBrush="{DynamicResource AccentPurpleBorderBrush}"
+                            BorderThickness="1"
+                            Margin="0,0,10,0">
+                            <svgc:SvgViewbox
+                                Width="14"
+                                Height="14"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Stretch="Uniform"
+                                Source="/Assets/Icons/server.svg"/>
+                        </Border>
+                        <TextBlock
+                            Text="WorldHub"
+                            FontFamily="Inter, Segoe UI, sans-serif"
+                            FontSize="18"
+                            FontWeight="SemiBold"
+                            VerticalAlignment="Center"
+                            Foreground="{DynamicResource TextPrimaryBrush}"/>
+                    </StackPanel>
 
                     <TextBlock
-                        Text="WorldHub"
-                        FontFamily="Inter"
-                        FontSize="19"
-                        FontWeight="SemiBold"
-                        Foreground="#F2F4F7"/>
-
-                    <TextBlock
-                        Margin="0,6,0,0"
+                        Margin="36,4,0,0"
                         Text="SERVER MANAGER"
-                        FontFamily="Inter"
+                        FontFamily="Inter, Segoe UI, sans-serif"
                         FontSize="9"
-                        FontWeight="Medium"
-                        Foreground="#8C95A3"/>
+                        FontWeight="SemiBold"
+                        Foreground="{DynamicResource TextMutedBrush}"/>
 
                 </StackPanel>
 
                 <!-- NAVIGATION -->
                 <StackPanel
-                    Margin="12,78,12,0">
+                    Margin="12,84,12,0">
 
                     <!-- МОИ СЕРВЕРЫ -->
                     <Button
                         x:Name="ServersNavButton"
-                        Width="196"
-                        Height="38"
-                        Padding="0"
-                        Background="#1A1F29"
-                        BorderThickness="0"
-                        HorizontalContentAlignment="Stretch"
-                        VerticalContentAlignment="Center"
-                        Foreground="#F2F4F7"
+                        Style="{StaticResource SidebarNavButton}"
+                        Margin="0,0,0,6"
                         Click="ServersNavigationButton_Click">
 
                         <StackPanel
-                            Width="196"
                             Orientation="Horizontal"
                             VerticalAlignment="Center">
 
                             <svgc:SvgViewbox
-                                Width="18"
-                                Height="18"
-                                Margin="13,0,0,0"
+                                Width="16"
+                                Height="16"
+                                Margin="4,0,0,0"
                                 Stretch="Uniform"
                                 Source="/Assets/Icons/server.svg"/>
 
                             <TextBlock
                                 x:Name="ServersNavText"
-                                Margin="11,0,0,0"
+                                Margin="12,0,0,0"
                                 VerticalAlignment="Center"
                                 Text="Мои серверы"
-                                FontFamily="Inter"
+                                FontFamily="Inter, Segoe UI, sans-serif"
                                 FontSize="13"
                                 FontWeight="Medium"
-                                Foreground="#F2F4F7"/>
+                                Foreground="{DynamicResource TextPrimaryBrush}"/>
 
                         </StackPanel>
 
@@ -99,38 +111,30 @@
                     <!-- ПОДКЛЮЧЕНИЕ -->
                     <Button
                         x:Name="ConnectionNavButton"
-                        Width="196"
-                        Height="38"
-                        Margin="0,8,0,0"
-                        Padding="0"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        HorizontalContentAlignment="Stretch"
-                        VerticalContentAlignment="Center"
-                        Foreground="#8C95A3"
+                        Style="{StaticResource SidebarNavButton}"
+                        Margin="0,0,0,6"
                         Click="ConnectionNavigationButton_Click">
 
                         <StackPanel
-                            Width="196"
                             Orientation="Horizontal"
                             VerticalAlignment="Center">
 
                             <svgc:SvgViewbox
-                                Width="18"
-                                Height="18"
-                                Margin="13,0,0,0"
+                                Width="16"
+                                Height="16"
+                                Margin="4,0,0,0"
                                 Stretch="Uniform"
                                 Source="/Assets/Icons/connection.svg"/>
 
                             <TextBlock
                                 x:Name="ConnectionNavText"
-                                Margin="11,0,0,0"
+                                Margin="12,0,0,0"
                                 VerticalAlignment="Center"
                                 Text="Подключение"
-                                FontFamily="Inter"
+                                FontFamily="Inter, Segoe UI, sans-serif"
                                 FontSize="13"
                                 FontWeight="Medium"
-                                Foreground="#8C95A3"/>
+                                Foreground="{DynamicResource TextSecondaryBrush}"/>
                         </StackPanel>
                     </Button>
 
@@ -138,44 +142,55 @@
                     <!-- НАСТРОЙКИ -->
                     <Button
                         x:Name="SettingsNavButton"
-                        Width="196"
-                        Height="38"
-                        Margin="0,8,0,0"
-                        Padding="0"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        HorizontalContentAlignment="Stretch"
-                        VerticalContentAlignment="Center"
-                        Foreground="#8C95A3"
+                        Style="{StaticResource SidebarNavButton}"
                         Click="SettingsNavigationButton_Click">
 
                         <StackPanel
-                            Width="196"
                             Orientation="Horizontal"
                             VerticalAlignment="Center">
 
                             <svgc:SvgViewbox
-                                Width="18"
-                                Height="18"
-                                Margin="13,0,0,0"
+                                Width="16"
+                                Height="16"
+                                Margin="4,0,0,0"
                                 Stretch="Uniform"
                                 Source="/Assets/Icons/settings.svg"/>
 
                             <TextBlock
                                 x:Name="SettingsNavText"
-                                Margin="11,0,0,0"
+                                Margin="12,0,0,0"
                                 VerticalAlignment="Center"
                                 Text="Настройки"
-                                FontFamily="Inter"
+                                FontFamily="Inter, Segoe UI, sans-serif"
                                 FontSize="13"
                                 FontWeight="Medium"
-                                Foreground="#8C95A3"/>
+                                Foreground="{DynamicResource TextSecondaryBrush}"/>
 
                         </StackPanel>
 
                     </Button>
 
                 </StackPanel>
+
+                <!-- SIDEBAR FOOTER -->
+                <Border
+                    VerticalAlignment="Bottom"
+                    Margin="12,0,12,16"
+                    Padding="10,8"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderSubtleBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Ellipse Width="6" Height="6" Fill="{DynamicResource AccentGreenBrush}" VerticalAlignment="Center" Margin="2,0,8,0"/>
+                        <TextBlock
+                            Text="WorldHub • v1.0"
+                            FontFamily="Inter, Segoe UI, sans-serif"
+                            FontSize="11"
+                            FontWeight="Medium"
+                            Foreground="{DynamicResource TextSecondaryBrush}"/>
+                    </StackPanel>
+                </Border>
 
             </Grid>
 

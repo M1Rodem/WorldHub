@@ -2,38 +2,67 @@
     x:Class="WorldHub.App.Views.Connection.RadminVpnStatusCard"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:svgc="http://sharpvectors.codeplex.com/svgc/"
     Background="Transparent">
 
     <Border
-        Padding="14"
-        Background="#1A1F29"
-        BorderBrush="#2A303B"
-        BorderThickness="1"
-        CornerRadius="6">
+        Style="{StaticResource InnerCardBorder}"
+        Padding="16,14">
 
-        <StackPanel>
-            <TextBlock
-                Text="Сеть Radmin VPN"
-                FontFamily="Inter"
-                FontSize="13"
-                FontWeight="SemiBold"
-                Foreground="#F2F4F7"/>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
 
-            <TextBlock
-                x:Name="RadminVpnStatusText"
-                Margin="0,8,0,0"
-                Text="Проверка..."
-                FontFamily="Inter"
-                FontSize="12"
-                Foreground="#A9B1BF"/>
+            <Border
+                Grid.Column="0"
+                Width="34"
+                Height="34"
+                CornerRadius="8"
+                Background="{DynamicResource AccentBlueSubtleBrush}"
+                BorderBrush="{DynamicResource AccentBlueBorderBrush}"
+                BorderThickness="1"
+                VerticalAlignment="Center">
+                <svgc:SvgViewbox
+                    Width="16"
+                    Height="16"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Stretch="Uniform"
+                    Source="/Assets/Icons/connection.svg"/>
+            </Border>
 
-            <TextBlock
-                x:Name="RadminVpnAddressText"
-                Margin="0,4,0,0"
-                Text="IP: —"
-                FontFamily="Inter"
-                FontSize="12"
-                Foreground="#8C95A3"/>
-        </StackPanel>
+            <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center">
+                <TextBlock
+                    Text="Сеть Radmin VPN"
+                    FontFamily="Inter, Segoe UI, sans-serif"
+                    FontSize="13"
+                    FontWeight="SemiBold"
+                    Foreground="{DynamicResource TextPrimaryBrush}"/>
+
+                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                    <TextBlock
+                        x:Name="RadminVpnStatusText"
+                        Text="Проверка..."
+                        FontFamily="Inter, Segoe UI, sans-serif"
+                        FontSize="12"
+                        Foreground="{DynamicResource TextSecondaryBrush}"/>
+
+                    <TextBlock
+                        Text="  ·  "
+                        FontFamily="Inter, Segoe UI, sans-serif"
+                        FontSize="12"
+                        Foreground="{DynamicResource TextMutedBrush}"/>
+
+                    <TextBlock
+                        x:Name="RadminVpnAddressText"
+                        Text="IP: —"
+                        FontFamily="Inter, Segoe UI, sans-serif"
+                        FontSize="12"
+                        Foreground="{DynamicResource TextMutedBrush}"/>
+                </StackPanel>
+            </StackPanel>
+        </Grid>
     </Border>
 </UserControl>

@@ -54,6 +54,8 @@ public sealed class ServerCardViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(StatusBrush));
             OnPropertyChanged(nameof(ActionText));
             OnPropertyChanged(nameof(ActionBackground));
+            OnPropertyChanged(nameof(ActionBorderBrush));
+            OnPropertyChanged(nameof(ActionForeground));
             OnPropertyChanged(nameof(IsActionEnabled));
         }
     }
@@ -87,10 +89,24 @@ public sealed class ServerCardViewModel : INotifyPropertyChanged
 
     public Brush ActionBackground =>
         Status == ServerStatus.Running
-            ? new SolidColorBrush(
-                Color.FromRgb(0x1A, 0x1F, 0x29))
-            : new SolidColorBrush(
-                Color.FromRgb(0x4C, 0x8D, 0xFF));
+            ? (Brush)(System.Windows.Application.Current?.TryFindResource("AccentRedSubtleBrush")
+                ?? new SolidColorBrush(Color.FromRgb(0x22, 0x10, 0x13)))
+            : (Brush)(System.Windows.Application.Current?.TryFindResource("AccentPurpleBrush")
+                ?? new SolidColorBrush(Color.FromRgb(0x7C, 0x3A, 0xED)));
+
+    public Brush ActionBorderBrush =>
+        Status == ServerStatus.Running
+            ? (Brush)(System.Windows.Application.Current?.TryFindResource("AccentRedBorderBrush")
+                ?? new SolidColorBrush(Color.FromRgb(0x45, 0x14, 0x19)))
+            : (Brush)(System.Windows.Application.Current?.TryFindResource("AccentPurpleBorderBrush")
+                ?? new SolidColorBrush(Color.FromRgb(0x47, 0x24, 0x7A)));
+
+    public Brush ActionForeground =>
+        Status == ServerStatus.Running
+            ? (Brush)(System.Windows.Application.Current?.TryFindResource("AccentRedBrush")
+                ?? new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44)))
+            : (Brush)(System.Windows.Application.Current?.TryFindResource("TextPrimaryBrush")
+                ?? new SolidColorBrush(Color.FromRgb(0xD5, 0xD9, 0xE0)));
 
     public event PropertyChangedEventHandler? PropertyChanged;
 

@@ -2,15 +2,15 @@
     x:Class="WorldHub.App.Views.Settings.CreateWorldHubServerWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Title="Создать WorldHub-server"
+    Title="Создать WorldHub-сервер"
     Width="460"
     Height="260"
     MinWidth="460"
     MinHeight="260"
     WindowStartupLocation="CenterOwner"
     ResizeMode="NoResize"
-    Background="#0E1117"
-    Foreground="#F2F4F7"
+    Background="{DynamicResource AppBackgroundBrush}"
+    Foreground="{DynamicResource TextPrimaryBrush}"
     ShowInTaskbar="False">
 
     <Grid Margin="28">
@@ -22,45 +22,38 @@
         </Grid.RowDefinitions>
 
         <StackPanel>
-
             <TextBlock
-                Text="Создать WorldHub-server"
-                FontFamily="Inter"
+                Text="Создать WorldHub-сервер"
+                FontFamily="Inter, Segoe UI, sans-serif"
                 FontSize="20"
                 FontWeight="SemiBold"
-                Foreground="#F2F4F7"/>
+                Foreground="{DynamicResource TextPrimaryBrush}"/>
 
             <TextBlock
-                Margin="0,6,0,0"
+                Margin="0,5,0,0"
                 Text="Создайте группу для совместной работы с серверами."
-                FontFamily="Inter"
+                FontFamily="Inter, Segoe UI, sans-serif"
                 FontSize="12"
-                Foreground="#8C95A3"/>
-
+                Foreground="{DynamicResource TextSecondaryBrush}"/>
         </StackPanel>
 
         <StackPanel
             Grid.Row="1"
-            Margin="0,24,0,0">
+            Margin="0,20,0,0">
 
             <TextBlock
                 Text="Название"
-                FontFamily="Inter"
+                FontFamily="Inter, Segoe UI, sans-serif"
                 FontSize="11"
-                Foreground="#8C95A3"/>
+                FontWeight="Medium"
+                Foreground="{DynamicResource TextMutedBrush}"/>
 
             <TextBox
                 x:Name="NameTextBox"
-                Height="40"
-                Margin="0,7,0,0"
+                Height="38"
+                Margin="0,6,0,0"
                 Padding="10,0"
-                VerticalContentAlignment="Center"
-                Background="#151922"
-                BorderBrush="#2A303B"
-                BorderThickness="1"
-                Foreground="#F2F4F7"
-                FontFamily="Inter"
-                FontSize="13"/>
+                VerticalContentAlignment="Center"/>
 
         </StackPanel>
 
@@ -70,22 +63,18 @@
             HorizontalAlignment="Right">
 
             <Button
-                Width="100"
+                Style="{StaticResource SecondaryButton}"
+                Width="96"
                 Height="36"
                 Margin="0,0,8,0"
                 Content="Отмена"
-                Background="#1A1F29"
-                BorderBrush="#2A303B"
-                Foreground="#F2F4F7"
                 Click="CancelButton_Click"/>
 
             <Button
-                Width="120"
+                Style="{StaticResource PrimaryButton}"
+                Width="110"
                 Height="36"
                 Content="Создать"
-                Background="#4C8DFF"
-                BorderBrush="#4C8DFF"
-                Foreground="White"
                 Click="CreateButton_Click"/>
 
         </StackPanel>

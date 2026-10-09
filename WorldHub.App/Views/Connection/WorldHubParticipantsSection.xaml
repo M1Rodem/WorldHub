@@ -6,252 +6,240 @@
 
     <StackPanel>
 
-            <TextBlock
-                x:Name="ParticipantsEmptyText"
-                Text="Пока нет ни одного участника. Добавьте друга по IP Radmin VPN."
-                FontFamily="Inter"
-                FontSize="12"
-                Foreground="#8C95A3"
-                TextWrapping="Wrap"
-                Visibility="Collapsed"/>
+        <TextBlock
+            x:Name="ParticipantsEmptyText"
+            Text="Пока нет ни одного участника. Добавьте друга по IP Radmin VPN."
+            FontFamily="Inter, Segoe UI, sans-serif"
+            FontSize="12"
+            Foreground="{DynamicResource TextSecondaryBrush}"
+            TextWrapping="Wrap"
+            Visibility="Collapsed"/>
 
-            <ItemsControl
-                x:Name="ParticipantsItemsControl">
+        <ItemsControl
+            x:Name="ParticipantsItemsControl">
 
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Border
-                            Margin="0,0,0,12"
-                            Padding="18"
-                            Background="#1A1F29"
-                            BorderBrush="#2A303B"
-                            BorderThickness="1"
-                            CornerRadius="8">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Border
+                        Style="{StaticResource InnerCardBorder}"
+                        Margin="0,0,0,10"
+                        Padding="16">
 
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
 
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
 
-                                <!-- Строка 0: имя слева, Online/Offline справа -->
+                            <!-- Строка 0: имя слева, Online/Offline справа -->
+                            <TextBlock
+                                Grid.Row="0"
+                                Grid.Column="0"
+                                Text="{Binding DisplayName}"
+                                FontFamily="Inter, Segoe UI, sans-serif"
+                                FontSize="15"
+                                FontWeight="SemiBold"
+                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                TextTrimming="CharacterEllipsis"
+                                VerticalAlignment="Center"/>
+
+                            <StackPanel
+                                Grid.Row="0"
+                                Grid.Column="1"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center">
+
+                                <Ellipse
+                                    Width="6"
+                                    Height="6"
+                                    VerticalAlignment="Center"
+                                    Fill="{Binding OnlineBrush}"/>
+
                                 <TextBlock
-                                    Grid.Row="0"
-                                    Grid.Column="0"
-                                    Text="{Binding DisplayName}"
-                                    FontFamily="Inter"
-                                    FontSize="15"
-                                    FontWeight="SemiBold"
-                                    Foreground="#F2F4F7"
-                                    TextTrimming="CharacterEllipsis"
-                                    VerticalAlignment="Center"/>
+                                    Margin="6,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Text="{Binding OnlineText}"
+                                    FontFamily="Inter, Segoe UI, sans-serif"
+                                    FontSize="11"
+                                    FontWeight="Medium"
+                                    Foreground="{Binding OnlineBrush}"/>
+                            </StackPanel>
 
+                            <!-- Строка 1: PcName · IP слева, Удалить справа -->
+                            <TextBlock
+                                Grid.Row="1"
+                                Grid.Column="0"
+                                Margin="0,3,0,0"
+                                Text="{Binding Subtitle}"
+                                FontFamily="Inter, Segoe UI, sans-serif"
+                                FontSize="11"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                VerticalAlignment="Center"/>
+
+                            <Button
+                                Grid.Row="1"
+                                Grid.Column="1"
+                                Width="84"
+                                Height="28"
+                                Margin="12,3,0,0"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"
+                                Content="Удалить"
+                                Tag="{Binding}"
+                                Click="RemoveParticipantButton_Click">
+
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource DangerButton}">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Setter Property="FontSize" Value="11"/>
+                                        <Setter Property="Height" Value="28"/>
+                                        <Setter Property="Padding" Value="8,0"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsSelf}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+
+                            <!-- Строка 2: статусы слева, кнопки справа -->
+                            <StackPanel
+                                Grid.Row="2"
+                                Grid.Column="0"
+                                Margin="0,10,0,0"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center">
+
+                                <!-- Ping -->
                                 <StackPanel
-                                    Grid.Row="0"
-                                    Grid.Column="1"
                                     Orientation="Horizontal"
-                                    HorizontalAlignment="Right"
-                                    VerticalAlignment="Center">
-
-                                    <Ellipse
-                                        Width="7"
-                                        Height="7"
-                                        VerticalAlignment="Center"
-                                        Fill="{Binding OnlineBrush}"/>
+                                    Margin="0,0,16,0">
 
                                     <TextBlock
-                                        Margin="8,0,0,0"
-                                        VerticalAlignment="Center"
-                                        Text="{Binding OnlineText}"
-                                        FontFamily="Inter"
-                                        FontSize="12"
+                                        Text="Ping: "
+                                        FontFamily="Inter, Segoe UI, sans-serif"
+                                        FontSize="11"
+                                        Foreground="{DynamicResource TextMutedBrush}"/>
+
+                                    <TextBlock
+                                        Text="{Binding PingStatusText}"
+                                        FontFamily="Inter, Segoe UI, sans-serif"
+                                        FontSize="11"
                                         FontWeight="Medium"
-                                        Foreground="{Binding OnlineBrush}"/>
+                                        Foreground="{Binding PingBrush}"/>
                                 </StackPanel>
 
-                                <!-- Строка 1: PcName · IP слева, Удалить справа -->
-                                <TextBlock
-                                    Grid.Row="1"
-                                    Grid.Column="0"
-                                    Margin="0,3,0,0"
-                                    Text="{Binding Subtitle}"
-                                    FontFamily="Inter"
-                                    FontSize="11"
-                                    Foreground="#8C95A3"
-                                    VerticalAlignment="Center"/>
+                                <!-- WorldHub -->
+                                <StackPanel
+                                    Orientation="Horizontal"
+                                    Margin="0,0,16,0">
+
+                                    <TextBlock
+                                        Text="WorldHub: "
+                                        FontFamily="Inter, Segoe UI, sans-serif"
+                                        FontSize="11"
+                                        Foreground="{DynamicResource TextMutedBrush}"/>
+
+                                    <TextBlock
+                                        Text="{Binding WorldHubStatusText}"
+                                        FontFamily="Inter, Segoe UI, sans-serif"
+                                        FontSize="11"
+                                        FontWeight="Medium"
+                                        Foreground="{Binding WorldHubBrush}"/>
+                                </StackPanel>
+
+                                <!-- Google Drive -->
+                                <StackPanel
+                                    Orientation="Horizontal"
+                                    Margin="0,0,16,0">
+
+                                    <TextBlock
+                                        Text="Google Drive: "
+                                        FontFamily="Inter, Segoe UI, sans-serif"
+                                        FontSize="11"
+                                        Foreground="{DynamicResource TextMutedBrush}"/>
+
+                                    <TextBlock
+                                        Text="{Binding GoogleDriveStatusText}"
+                                        FontFamily="Inter, Segoe UI, sans-serif"
+                                        FontSize="11"
+                                        FontWeight="Medium"
+                                        Foreground="{Binding GoogleDriveBrush}"/>
+                                </StackPanel>
+
+                                <!-- Version -->
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock
+                                        Text="Версия: "
+                                        FontFamily="Inter, Segoe UI, sans-serif"
+                                        FontSize="11"
+                                        Foreground="{DynamicResource TextMutedBrush}"/>
+
+                                    <TextBlock
+                                        Text="{Binding VersionText}"
+                                        FontFamily="Inter, Segoe UI, sans-serif"
+                                        FontSize="11"
+                                        Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <StackPanel
+                                Grid.Row="2"
+                                Grid.Column="1"
+                                Margin="12,10,0,0"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center">
 
                                 <Button
-                                    Grid.Row="1"
-                                    Grid.Column="1"
-                                    Width="90"
+                                    x:Name="InviteParticipantButton"
+                                    Width="110"
                                     Height="28"
-                                    Margin="12,3,0,0"
-                                    HorizontalAlignment="Right"
-                                    VerticalAlignment="Center"
-                                    Content="Удалить"
-                                    Background="#3A1820"
-                                    BorderBrush="#8F3043"
-                                    BorderThickness="1"
-                                    Foreground="#E56B6F"
-                                    FontFamily="Inter"
-                                    FontSize="12"
+                                    Margin="0,0,8,0"
+                                    Content="Пригласить"
                                     Tag="{Binding}"
-                                    Click="RemoveParticipantButton_Click">
+                                    Click="InviteParticipantButton_Click">
 
                                     <Button.Style>
-                                        <Style TargetType="Button">
-                                            <Setter Property="Visibility" Value="Visible"/>
+                                        <Style TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Setter Property="FontSize" Value="11"/>
+                                            <Setter Property="Height" Value="28"/>
+                                            <Setter Property="Padding" Value="8,0"/>
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsSelf}" Value="True">
-                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                <DataTrigger Binding="{Binding CanInviteToFolder}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </Button.Style>
                                 </Button>
 
-                                <!-- Строка 2: статусы слева, кнопки справа -->
-                                <StackPanel
-                                    Grid.Row="2"
-                                    Grid.Column="0"
-                                    Margin="0,10,0,0"
-                                    Orientation="Horizontal"
-                                    VerticalAlignment="Center">
+                                <Button
+                                    Style="{StaticResource SecondaryButton}"
+                                    Width="96"
+                                    Height="28"
+                                    Padding="8,0"
+                                    FontSize="11"
+                                    Content="Проверить"
+                                    Tag="{Binding}"
+                                    Click="CheckParticipantButton_Click"/>
+                            </StackPanel>
 
-                                    <!-- Ping -->
-                                    <StackPanel
-                                        Orientation="Horizontal"
-                                        Margin="0,0,16,0">
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
 
-                                        <TextBlock
-                                            Text="Ping: "
-                                            FontFamily="Inter"
-                                            FontSize="11"
-                                            Foreground="#8C95A3"/>
+        </ItemsControl>
 
-                                        <TextBlock
-                                            Text="{Binding PingStatusText}"
-                                            FontFamily="Inter"
-                                            FontSize="11"
-                                            FontWeight="Medium"
-                                            Foreground="{Binding PingBrush}"/>
-                                    </StackPanel>
-
-                                    <!-- WorldHub -->
-                                    <StackPanel
-                                        Orientation="Horizontal"
-                                        Margin="0,0,16,0">
-
-                                        <TextBlock
-                                            Text="WorldHub: "
-                                            FontFamily="Inter"
-                                            FontSize="11"
-                                            Foreground="#8C95A3"/>
-
-                                        <TextBlock
-                                            Text="{Binding WorldHubStatusText}"
-                                            FontFamily="Inter"
-                                            FontSize="11"
-                                            FontWeight="Medium"
-                                            Foreground="{Binding WorldHubBrush}"/>
-                                    </StackPanel>
-
-                                    <!-- Google Drive -->
-                                    <StackPanel
-                                        Orientation="Horizontal"
-                                        Margin="0,0,16,0">
-
-                                        <TextBlock
-                                            Text="Google Drive: "
-                                            FontFamily="Inter"
-                                            FontSize="11"
-                                            Foreground="#8C95A3"/>
-
-                                        <TextBlock
-                                            Text="{Binding GoogleDriveStatusText}"
-                                            FontFamily="Inter"
-                                            FontSize="11"
-                                            FontWeight="Medium"
-                                            Foreground="{Binding GoogleDriveBrush}"/>
-                                    </StackPanel>
-
-                                    <!-- Version -->
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock
-                                            Text="Версия: "
-                                            FontFamily="Inter"
-                                            FontSize="11"
-                                            Foreground="#8C95A3"/>
-
-                                        <TextBlock
-                                            Text="{Binding VersionText}"
-                                            FontFamily="Inter"
-                                            FontSize="11"
-                                            Foreground="#F2F4F7"/>
-                                    </StackPanel>
-                                </StackPanel>
-
-                                <StackPanel
-                                    Grid.Row="2"
-                                    Grid.Column="1"
-                                    Margin="12,10,0,0"
-                                    Orientation="Horizontal"
-                                    HorizontalAlignment="Right"
-                                    VerticalAlignment="Center">
-
-                                    <Button
-                                        x:Name="InviteParticipantButton"
-                                        Width="130"
-                                        Height="32"
-                                        Margin="0,0,8,0"
-                                        Content="Пригласить"
-                                        Background="#1A1F29"
-                                        BorderBrush="#2A303B"
-                                        BorderThickness="1"
-                                        Foreground="#8FA8D8"
-                                        FontFamily="Inter"
-                                        FontSize="12"
-                                        Tag="{Binding}"
-                                        Click="InviteParticipantButton_Click">
-
-                                        <Button.Style>
-                                            <Style TargetType="Button">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding CanInviteToFolder}" Value="True">
-                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                    </Button>
-
-                                    <Button
-                                        Width="130"
-                                        Height="32"
-                                        Content="Проверить"
-                                        Background="#1A1F29"
-                                        BorderBrush="#2A303B"
-                                        BorderThickness="1"
-                                        Foreground="#F2F4F7"
-                                        FontFamily="Inter"
-                                        FontSize="12"
-                                        Tag="{Binding}"
-                                        Click="CheckParticipantButton_Click"/>
-                                </StackPanel>
-
-                            </Grid>
-                        </Border>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-
-            </ItemsControl>
-
-        </StackPanel>
+    </StackPanel>
 </UserControl>

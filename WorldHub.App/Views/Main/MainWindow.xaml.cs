@@ -134,23 +134,30 @@ public partial class MainWindow
 
     private void SetActiveTab(NavTab tab)
     {
-        var activeBackground = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#1A1F29")!;
+        var activeBackground = (System.Windows.Media.Brush?)Application.Current.TryFindResource("AccentPurpleSubtleBrush")
+            ?? (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#1F1934")!;
+        var activeBorder = (System.Windows.Media.Brush?)Application.Current.TryFindResource("AccentPurpleBorderBrush")
+            ?? (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#53348A")!;
+        var activeForeground = (System.Windows.Media.Brush?)Application.Current.TryFindResource("TextPrimaryBrush")
+            ?? (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#F3F5F9")!;
+
         var inactiveBackground = System.Windows.Media.Brushes.Transparent;
+        var inactiveBorder = System.Windows.Media.Brushes.Transparent;
+        var inactiveForeground = (System.Windows.Media.Brush?)Application.Current.TryFindResource("TextSecondaryBrush")
+            ?? (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#8E9AB0")!;
 
-        var activeForeground = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#F2F4F7")!;
-        var inactiveForeground = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#8C95A3")!;
+        void ApplyNav(System.Windows.Controls.Button btn, System.Windows.Controls.TextBlock txt, bool isActive)
+        {
+            btn.Background = isActive ? activeBackground : inactiveBackground;
+            btn.BorderBrush = isActive ? activeBorder : inactiveBorder;
+            btn.Foreground = isActive ? activeForeground : inactiveForeground;
+            txt.Foreground = isActive ? activeForeground : inactiveForeground;
+            txt.FontWeight = isActive ? FontWeights.SemiBold : FontWeights.Medium;
+        }
 
-        ServersNavButton.Background = tab == NavTab.Servers ? activeBackground : inactiveBackground;
-        ServersNavButton.Foreground = tab == NavTab.Servers ? activeForeground : inactiveForeground;
-        ServersNavText.Foreground = tab == NavTab.Servers ? activeForeground : inactiveForeground;
-
-        ConnectionNavButton.Background = tab == NavTab.Connection ? activeBackground : inactiveBackground;
-        ConnectionNavButton.Foreground = tab == NavTab.Connection ? activeForeground : inactiveForeground;
-        ConnectionNavText.Foreground = tab == NavTab.Connection ? activeForeground : inactiveForeground;
-
-        SettingsNavButton.Background = tab == NavTab.Settings ? activeBackground : inactiveBackground;
-        SettingsNavButton.Foreground = tab == NavTab.Settings ? activeForeground : inactiveForeground;
-        SettingsNavText.Foreground = tab == NavTab.Settings ? activeForeground : inactiveForeground;
+        ApplyNav(ServersNavButton, ServersNavText, tab == NavTab.Servers);
+        ApplyNav(ConnectionNavButton, ConnectionNavText, tab == NavTab.Connection);
+        ApplyNav(SettingsNavButton, SettingsNavText, tab == NavTab.Settings);
     }
 
     private enum NavTab

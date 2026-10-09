@@ -189,5 +189,20 @@ public partial class MinecraftServerSettingsView : UserControl
         StatusIndicator.Fill = ServerStatusUiHelper.GetStatusBrush(status);
         ServerActionButton.Content = ServerStatusUiHelper.GetActionText(status);
         ServerActionButton.IsEnabled = ServerStatusUiHelper.CanExecuteAction(status);
+
+        if (status == ServerStatus.Running)
+        {
+            if (TryFindResource("DangerButton") is Style dangerStyle)
+            {
+                ServerActionButton.Style = dangerStyle;
+            }
+        }
+        else
+        {
+            if (TryFindResource("PrimaryButton") is Style primaryStyle)
+            {
+                ServerActionButton.Style = primaryStyle;
+            }
+        }
     }
 }

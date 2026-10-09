@@ -5,67 +5,65 @@
     Background="Transparent">
 
     <Border
-        Padding="22"
-        Background="#151922"
-        BorderBrush="#2A303B"
-        BorderThickness="1"
-        CornerRadius="8">
+        Style="{StaticResource CardBorder}"
+        Padding="20">
 
         <StackPanel>
 
             <TextBlock
                 Text="Обновления"
-                FontFamily="Inter"
-                FontSize="16"
+                FontFamily="Inter, Segoe UI, sans-serif"
+                FontSize="15"
                 FontWeight="SemiBold"
-                Foreground="#F2F4F7"/>
+                Foreground="{DynamicResource TextPrimaryBrush}"/>
 
             <StackPanel
-                Margin="0,14,0,0"
+                Margin="0,12,0,0"
                 Orientation="Horizontal">
 
                 <TextBlock
                     Text="Версия: "
-                    FontFamily="Inter"
+                    FontFamily="Inter, Segoe UI, sans-serif"
                     FontSize="12"
-                    Foreground="#8C95A3"/>
+                    Foreground="{DynamicResource TextSecondaryBrush}"/>
 
                 <TextBlock
                     x:Name="AppVersionText"
-                    FontFamily="Inter"
+                    FontFamily="Inter, Segoe UI, sans-serif"
                     FontSize="12"
-                    Foreground="#F2F4F7"/>
+                    FontWeight="Medium"
+                    Foreground="{DynamicResource TextPrimaryBrush}"/>
 
                 <TextBlock
-                    Margin="24,0,0,0"
+                    Margin="20,0,0,0"
                     Text="Платформа: Windows x64"
-                    FontFamily="Inter"
+                    FontFamily="Inter, Segoe UI, sans-serif"
                     FontSize="12"
-                    Foreground="#8C95A3"/>
+                    Foreground="{DynamicResource TextMutedBrush}"/>
             </StackPanel>
 
             <TextBlock
                 x:Name="UpdateStatusText"
-                Margin="0,14,0,0"
+                Margin="0,12,0,0"
                 Text="● Проверка ещё не выполнялась"
-                FontFamily="Inter"
+                FontFamily="Inter, Segoe UI, sans-serif"
                 FontSize="12"
-                Foreground="#A9B1BF"/>
+                Foreground="{DynamicResource TextSecondaryBrush}"/>
 
             <TextBlock
                 x:Name="LatestVersionText"
                 Margin="0,4,0,0"
-                FontFamily="Inter"
+                FontFamily="Inter, Segoe UI, sans-serif"
                 FontSize="11"
-                Foreground="#8C95A3"
+                Foreground="{DynamicResource TextSecondaryBrush}"
                 Visibility="Collapsed"/>
 
             <TextBlock
                 x:Name="LastUpdateCheckText"
                 Margin="0,4,0,0"
-                FontFamily="Inter"
+                FontFamily="Inter, Segoe UI, sans-serif"
                 FontSize="11"
-                Foreground="#8C95A3"
+                Foreground="{DynamicResource TextMutedBrush}"
                 Visibility="Collapsed"/>
 
             <StackPanel
@@ -74,31 +72,19 @@
 
                 <Button
                     x:Name="CheckUpdateButton"
-                    Width="180"
-                    Height="36"
-                    Padding="0"
+                    Style="{StaticResource SecondaryButton}"
+                    Height="34"
+                    Padding="14,0"
                     Content="Проверить обновления"
-                    Background="#1A1F29"
-                    BorderBrush="#2A303B"
-                    BorderThickness="1"
-                    Foreground="#F2F4F7"
-                    FontFamily="Inter"
-                    FontSize="12"
                     Click="CheckUpdateButton_Click"/>
 
                 <Button
                     x:Name="UpdateButton"
-                    Width="105"
-                    Height="36"
+                    Style="{StaticResource PrimaryButton}"
+                    Height="34"
                     Margin="8,0,0,0"
-                    Padding="0"
+                    Padding="16,0"
                     Content="Обновить"
-                    Background="#4C8DFF"
-                    BorderBrush="#4C8DFF"
-                    BorderThickness="1"
-                    Foreground="#FFFFFF"
-                    FontFamily="Inter"
-                    FontSize="12"
                     IsEnabled="False"
                     Click="UpdateButton_Click"/>
             </StackPanel>
