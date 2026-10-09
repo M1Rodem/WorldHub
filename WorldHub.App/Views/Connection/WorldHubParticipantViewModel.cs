@@ -60,19 +60,6 @@ public sealed class WorldHubParticipantViewModel : INotifyPropertyChanged
                 : $"{pc} · {_participant.IpAddress}";
         }
     }
-
-    public string GoogleEmailText =>
-    string.IsNullOrWhiteSpace(_participant.GoogleEmail)
-        ? "—"
-        : _participant.GoogleEmail!;
-
-    public bool HasGoogleEmail =>
-        !string.IsNullOrWhiteSpace(_participant.GoogleEmail);
-
-    public bool CanInviteToFolder =>
-        !IsSelf &&
-        HasGoogleEmail;
-
     private bool HasBeenChecked => _participant.LastCheckAtUtc is not null;
 
     public string OnlineText =>
@@ -235,9 +222,6 @@ public sealed class WorldHubParticipantViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(GoogleDriveBrush));
         OnPropertyChanged(nameof(VersionText));
         OnPropertyChanged(nameof(LastSeenText));
-        OnPropertyChanged(nameof(GoogleEmailText));
-        OnPropertyChanged(nameof(HasGoogleEmail));
-        OnPropertyChanged(nameof(CanInviteToFolder));
     }
 
     private void OnPropertyChanged(

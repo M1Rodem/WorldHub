@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using WorldHub.Logging;
 using WorldHub.Network.Models;
 using WorldHub.Network.Protocol;
 
@@ -41,6 +42,30 @@ public sealed class NetworkHost : IDisposable
         _logError = logError;
     }
 
+    private void Log(string message)
+    {
+        if (_log is not null)
+        {
+            _log(message);
+        }
+        else
+        {
+            AppLog.Log(message);
+        }
+    }
+
+    private void LogError(string message, Exception? exception = null)
+    {
+        if (_logError is not null)
+        {
+            _logError(message);
+        }
+        else
+        {
+            AppLog.Error(message, exception);
+        }
+    }
+
     public int Port => _port;
 
     public void Start()
@@ -54,7 +79,7 @@ public sealed class NetworkHost : IDisposable
 
         _listenerTask = ListenLoopAsync(_cancellationTokenSource.Token);
 
-        _log?.Invoke(
+        Log(
             $"WorldHub network listener starting on port {_port}.");
     }
 
@@ -65,7 +90,7 @@ public sealed class NetworkHost : IDisposable
         try
         {
             listener = await _networkService.ListenAsync(_port, cancellationToken);
-            _log?.Invoke($"WorldHub network listener started on port {_port}.");
+            Log($"WorldHub network listener started on port {_port}.");
 
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -73,8 +98,7 @@ public sealed class NetworkHost : IDisposable
 
                 try
                 {
-                    _log?.Invoke(
-                        $"Waiting for WorldHub connection on port {_port}...");
+                    Log($"Waiting for WorldHub connection on port {_port}...");
 
                     connection = await listener.AcceptAsync(cancellationToken);
                 }
@@ -84,8 +108,7 @@ public sealed class NetworkHost : IDisposable
                 }
                 catch (Exception exception)
                 {
-                    _logError?.Invoke(
-                        $"WorldHub network listener error: {exception}");
+                    LogError($"WorldHub network listener error: {exception}", exception);
 
                     if (!cancellationToken.IsCancellationRequested)
                     {
@@ -112,15 +135,13 @@ public sealed class NetworkHost : IDisposable
                 }
                 catch (Exception exception)
                 {
-                    _logError?.Invoke(
-                        $"WorldHub handshake negotiation failed: {exception.Message}");
+                    LogError($"WorldHub handshake negotiation failed: {exception.Message}", exception);
 
                     await connection.DisposeAsync();
                     continue;
                 }
 
-                _log?.Invoke(
-                    "WorldHub network handshake accepted successfully.");
+                Log("WorldHub network handshake accepted successfully.");
 
                 // Обработка соединения запускается в фоне с отслеживанием,
                 // чтобы молчащий клиент не блокировал приём следующих.
@@ -133,8 +154,7 @@ public sealed class NetworkHost : IDisposable
         }
         catch (Exception exception)
         {
-            _logError?.Invoke(
-                $"WorldHub network listener fatal error: {exception}");
+            LogError($"WorldHub network listener fatal error: {exception}", exception);
         }
         finally
         {
@@ -143,7 +163,7 @@ public sealed class NetworkHost : IDisposable
                 await listener.DisposeAsync();
             }
 
-            _log?.Invoke("WorldHub network listener stopped.");
+            Log("WorldHub network listener stopped.");
         }
     }
 
@@ -188,18 +208,18 @@ public sealed class NetworkHost : IDisposable
             }
             catch (EndOfStreamException)
             {
-                _log?.Invoke(
+                Log(
                     "WorldHub network connection closed without transfer.");
             }
             catch (InvalidDataException exception)
             {
-                _logError?.Invoke(
-                    $"WorldHub transfer protocol error: {exception.Message}");
+                LogError(
+                    $"WorldHub transfer protocol error: {exception.Message}", exception);
             }
             catch (Exception exception)
             {
-                _logError?.Invoke(
-                    $"WorldHub incoming transfer failed: {exception}");
+                LogError(
+                    $"WorldHub incoming transfer failed: {exception}", exception);
             }
         }
     }
@@ -245,7 +265,7 @@ public sealed class NetworkHost : IDisposable
         {
             cancellationTokenSource.Dispose();
             _listenerTask = null;
-            _log?.Invoke("WorldHub network service disposed.");
+            Log("WorldHub network service disposed.");
         }
     }
 }

@@ -5,6 +5,10 @@ namespace WorldHub.App.Services.Diagnostics;
 
 public static class DebugConsole
 {
+    private static IntPtr _consoleHwnd = IntPtr.Zero;
+    private static StreamWriter? _stdout;
+    private static StreamWriter? _stderr;
+
     [DllImport("kernel32.dll")]
     private static extern bool AllocConsole();
 
@@ -17,7 +21,14 @@ public static class DebugConsole
     [DllImport("user32.dll")]
     private static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
+    [DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
     private const uint WM_CLOSE = 0x0010;
+    private const int SW_HIDE = 0;
 
     public static void Initialize()
     {
@@ -26,11 +37,12 @@ public static class DebugConsole
             return;
         }
 
-        // Перенаправляем потоки Console на выделенную консоль
-        var stdout = new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true };
-        var stderr = new StreamWriter(Console.OpenStandardError()) { AutoFlush = true };
-        Console.SetOut(stdout);
-        Console.SetError(stderr);
+        _consoleHwnd = GetConsoleWindow();
+
+        _stdout = new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true };
+        _stderr = new StreamWriter(Console.OpenStandardError()) { AutoFlush = true };
+        Console.SetOut(_stdout);
+        Console.SetError(_stderr);
 
         Console.Title = "WorldHub Debug Console";
 
@@ -46,27 +58,68 @@ public static class DebugConsole
         Console.WriteLine();
     }
 
-    public static void Log(string message)
-    {
-        Console.WriteLine(
-            $"[{DateTime.Now:HH:mm:ss}] {message}");
-    }
+    /// <summary>Обычное информационное сообщение (делегируется в AppLog).</summary>
+    public static void Log(string message) =>
+        WorldHub.Logging.AppLog.Log(message);
 
-    public static void Error(string message)
-    {
-        Console.WriteLine(
-            $"[{DateTime.Now:HH:mm:ss}] [ERROR] {message}");
-    }
+    /// <summary>Успех — помечается ✓, зелёным (делегируется в AppLog).</summary>
+    public static void Success(string message) =>
+        WorldHub.Logging.AppLog.Success(message);
+
+    /// <summary>Предупреждение — помечается !, жёлтым (делегируется в AppLog).</summary>
+    public static void Warning(string message) =>
+        WorldHub.Logging.AppLog.Warning(message);
+
+    /// <summary>Ошибка — помечается ✗, красным (делегируется в AppLog).</summary>
+    public static void Error(string message) =>
+        WorldHub.Logging.AppLog.Error(message);
+
+    /// <summary>Разделитель между логическими блоками (делегируется в AppLog).</summary>
+    public static void Separator(string title = "") =>
+        WorldHub.Logging.AppLog.Separator(title);
 
     public static void Close()
     {
-        try
+        var hWnd = _consoleHwnd != IntPtr.Zero ? _consoleHwnd : GetConsoleWindow();
+
+        if (hWnd != IntPtr.Zero)
         {
-            var hWnd = GetConsoleWindow();
-            if (hWnd != IntPtr.Zero)
+            try
+            {
+                // Немедленно скрываем окно с экрана
+                ShowWindow(hWnd, SW_HIDE);
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                SendMessage(hWnd, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
+            }
+            catch
+            {
+            }
+
+            try
             {
                 PostMessage(hWnd, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
             }
+            catch
+            {
+            }
+        }
+
+        try
+        {
+            _stdout?.Flush();
+            _stderr?.Flush();
+            Console.SetOut(TextWriter.Null);
+            Console.SetError(TextWriter.Null);
+            _stdout?.Dispose();
+            _stderr?.Dispose();
+            _stdout = null;
+            _stderr = null;
         }
         catch
         {
@@ -79,5 +132,10 @@ public static class DebugConsole
         catch
         {
         }
+
+        _consoleHwnd = IntPtr.Zero;
     }
+
+    private static string Time() =>
+        DateTime.Now.ToString("HH:mm:ss");
 }

@@ -1,4 +1,5 @@
-﻿using WorldHub.Core.Enums;
+﻿using System.Text.Json.Serialization;
+using WorldHub.Core.Enums;
 
 namespace WorldHub.Core.Entities;
 
@@ -22,8 +23,10 @@ public sealed class WorldHubParticipant
 
     /// <summary>
     /// Google-email участника. Заполняется при успешной проверке
-    /// из PeerInfo. Используется для приглашения в общую папку.
+    /// из PeerInfo. НЕ сохраняется в JSON — только для текущей сессии.
+    /// Используется для автоматического приглашения в общую папку.
     /// </summary>
+    [JsonIgnore]
     public string? GoogleEmail { get; set; }
 
     public DateTimeOffset? LastSeenAtUtc { get; set; }

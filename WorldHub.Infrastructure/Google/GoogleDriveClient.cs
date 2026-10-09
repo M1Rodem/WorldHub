@@ -2,6 +2,7 @@ using global::Google.Apis.Drive.v3;
 using global::Google.Apis.Services;
 using Google;
 using WorldHub.Core.Enums;
+using WorldHub.Logging;
 
 namespace WorldHub.Infrastructure.Google;
 
@@ -219,6 +220,9 @@ public sealed class GoogleDriveClient
 
         var folder = await request.ExecuteAsync(token);
 
+        AppLog.Log(
+            $"[DRIVE] Folder created: {folder.Name} ({folder.Id})");
+
         return folder.Id;
     }
 
@@ -282,6 +286,9 @@ public sealed class GoogleDriveClient
 
             var result = await request.ExecuteAsync(token);
 
+            AppLog.Success(
+                $"[DRIVE] Share {folderId} → {result.EmailAddress} ({result.Role})");
+
             return new FolderShareResult(
                 Success: true,
                 PermissionId: result.Id,
@@ -301,6 +308,11 @@ public sealed class GoogleDriveClient
         }
         catch (GoogleApiException exception)
         {
+            AppLog.Error(
+                $"[DRIVE] Share {folderId} → {email} failed: " +
+                $"{exception.HttpStatusCode} {exception.Message}",
+                exception);
+
             return new FolderShareResult(
                 Success: false,
                 PermissionId: null,
@@ -358,9 +370,13 @@ public sealed class GoogleDriveClient
                     "application/vnd.google-apps.folder",
                     StringComparison.Ordinal))
             {
-                // Объект найден и доступен, но это не папка.
+                AppLog.Warning(
+                    $"[DRIVE] {folderId} is not a folder: {folder.MimeType}");
                 return FolderAccessStatus.NoAccess;
             }
+
+            AppLog.Success(
+                $"[DRIVE] Folder access OK: {folder.Name} ({folderId})");
 
             return FolderAccessStatus.Accessible;
         }
@@ -385,6 +401,9 @@ public sealed class GoogleDriveClient
         catch (GoogleApiException exception)
             when ((int)exception.HttpStatusCode == 404)
         {
+            AppLog.Error(
+                $"[DRIVE] Folder {folderId} not found (404).",
+                exception);
             return FolderAccessStatus.FolderNotFound;
         }
         catch (GoogleApiException exception)

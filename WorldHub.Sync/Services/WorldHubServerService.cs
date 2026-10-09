@@ -1,5 +1,6 @@
-﻿using WorldHub.Core.Entities;
+using WorldHub.Core.Entities;
 using WorldHub.Core.Interfaces;
+using WorldHub.Logging;
 
 namespace WorldHub.Sync.Services;
 
@@ -62,6 +63,9 @@ public sealed class WorldHubServerService
             worldHubServer,
             cancellationToken);
 
+        AppLog.Success(
+            $"[SYNC] Created WorldHub server '{worldHubServer.Name}' ({worldHubServer.Id})");
+
         return worldHubServer;
     }
 
@@ -78,13 +82,16 @@ public sealed class WorldHubServerService
             cancellationToken);
     }
 
-    public Task DeleteAsync(
+    public async Task DeleteAsync(
         Guid id,
         CancellationToken cancellationToken = default)
     {
-        return _repository.DeleteAsync(
+        await _repository.DeleteAsync(
             id,
             cancellationToken);
+
+        AppLog.Log(
+            $"[SYNC] Deleted WorldHub server {id}");
     }
 
     /// <summary>
@@ -159,6 +166,9 @@ public sealed class WorldHubServerService
         await _repository.UpdateAsync(
             server,
             cancellationToken);
+
+        AppLog.Success(
+            $"[SYNC] Participant {ipAddress} added to WorldHub server {worldHubServerId}.");
     }
 
     public async Task<IReadOnlyList<WorldHubParticipant>>
@@ -208,6 +218,9 @@ public sealed class WorldHubServerService
         await _repository.UpdateAsync(
             server,
             cancellationToken);
+
+        AppLog.Log(
+            $"[SYNC] Participant {participant.IpAddress} ({participantId}) removed from WorldHub server {worldHubServerId}.");
     }
 
     /// <summary>

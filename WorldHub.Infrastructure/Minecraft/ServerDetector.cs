@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using WorldHub.Core.Entities;
 using WorldHub.Core.Enums;
 using WorldHub.Core.Interfaces;
+using WorldHub.Logging;
 
 namespace WorldHub.Infrastructure.Minecraft;
 
@@ -40,6 +41,9 @@ public sealed class ServerDetector : IServerDetector
 
         var metadata =
             DetectServerMetadata(serverDirectory);
+
+        AppLog.Log(
+            $"[DETECTOR] Detected {metadata.Loader} (MC: {metadata.MinecraftVersion}, Type: {launchType}) at {serverDirectory}");
 
         return new ServerDetectionResult
         {

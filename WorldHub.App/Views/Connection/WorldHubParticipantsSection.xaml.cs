@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using WorldHub.App.Services.Network;
 using WorldHub.App.Views.Dialogs;
 using WorldHub.Core.Entities;
+using WorldHub.Logging;
 using WorldHub.Sync.Services;
 
 namespace WorldHub.App.Views.Connection;
@@ -13,15 +14,13 @@ public partial class WorldHubParticipantsSection : UserControl
     private WorldHubParticipantCheckService? _checkService;
     private WorldHubServerService? _worldHubServerService;
     private string _localDeviceId = string.Empty;
+    private Func<string>? _userNameProvider;
     private Guid? _selectedServerId;
     private string? _selectedServerName;
     private bool _isChecking;
-
     public ObservableCollection<WorldHubParticipantViewModel> Participants { get; } = new();
-
-    public event Func<WorldHubParticipantViewModel, Task>? InviteRequested;
     public event EventHandler<int>? ParticipantCountChanged;
-
+    public event EventHandler? ParticipantCheckCompleted;
     public WorldHubParticipantsSection()
     {
         InitializeComponent();
@@ -31,7 +30,8 @@ public partial class WorldHubParticipantsSection : UserControl
     public void Initialize(
         WorldHubParticipantCheckService checkService,
         WorldHubServerService worldHubServerService,
-        string localDeviceId)
+        string localDeviceId,
+        Func<string>? userNameProvider = null)
     {
         ArgumentNullException.ThrowIfNull(checkService);
         ArgumentNullException.ThrowIfNull(worldHubServerService);
@@ -40,6 +40,7 @@ public partial class WorldHubParticipantsSection : UserControl
         _checkService = checkService;
         _worldHubServerService = worldHubServerService;
         _localDeviceId = localDeviceId;
+        _userNameProvider = userNameProvider;
     }
 
     public void SetServer(Guid? serverId, string? serverName = null)
@@ -73,6 +74,20 @@ public partial class WorldHubParticipantsSection : UserControl
                 UpdateParticipantsUi();
             }
             return;
+        }
+
+        // Обновляем никнейм себя (локального участника), если он был изменён в настройках
+        var currentLocalUserName = _userNameProvider?.Invoke();
+        if (!string.IsNullOrWhiteSpace(currentLocalUserName) && !string.IsNullOrWhiteSpace(_localDeviceId))
+        {
+            var selfParticipant = server.Participants.FirstOrDefault(p =>
+                string.Equals(p.DeviceId, _localDeviceId, StringComparison.OrdinalIgnoreCase));
+
+            if (selfParticipant is not null && selfParticipant.UserName != currentLocalUserName)
+            {
+                selfParticipant.UserName = currentLocalUserName;
+                await _worldHubServerService.UpdateAsync(server);
+            }
         }
 
         Participants.Clear();
@@ -117,6 +132,7 @@ public partial class WorldHubParticipantsSection : UserControl
             if (_selectedServerId == serverId && !cancellationToken.IsCancellationRequested)
             {
                 await ReloadParticipantsAsync(serverId);
+                ParticipantCheckCompleted?.Invoke(this, EventArgs.Empty);
             }
         }
         catch (OperationCanceledException)
@@ -124,8 +140,7 @@ public partial class WorldHubParticipantsSection : UserControl
         }
         catch (Exception exception)
         {
-            System.Diagnostics.Debug.WriteLine(
-                $"CheckAll failed: {exception.Message}");
+            AppLog.Warning($"CheckAll failed: {exception.Message}", exception);
         }
         finally
         {
@@ -153,6 +168,8 @@ public partial class WorldHubParticipantsSection : UserControl
 
         var serverId = _selectedServerId.Value;
 
+        AppLog.Separator($"Adding participant {window.IpAddress}");
+
         try
         {
             var participant = await _checkService.AddParticipantAsync(
@@ -174,6 +191,8 @@ public partial class WorldHubParticipantsSection : UserControl
             {
                 await ReloadParticipantsAsync(serverId);
             }
+
+            ParticipantCheckCompleted?.Invoke(this, EventArgs.Empty);
         }
         catch (OperationCanceledException)
         {
@@ -201,6 +220,8 @@ public partial class WorldHubParticipantsSection : UserControl
             return;
         }
 
+        AppLog.Separator($"Manual check of '{vm.DisplayName}'");
+
         var serverId = _selectedServerId.Value;
         button.IsEnabled = false;
 
@@ -215,6 +236,8 @@ public partial class WorldHubParticipantsSection : UserControl
             {
                 await ReloadParticipantsAsync(serverId);
             }
+
+            ParticipantCheckCompleted?.Invoke(this, EventArgs.Empty);
         }
         catch (OperationCanceledException)
         {
@@ -294,33 +317,6 @@ public partial class WorldHubParticipantsSection : UserControl
         finally
         {
             button.IsEnabled = true;
-        }
-    }
-
-    private async void InviteParticipantButton_Click(
-        object sender,
-        RoutedEventArgs e)
-    {
-        if (sender is not Button button ||
-            button.Tag is not WorldHubParticipantViewModel vm)
-        {
-            return;
-        }
-
-        button.IsEnabled = false;
-        button.Content = "...";
-
-        try
-        {
-            if (InviteRequested is not null)
-            {
-                await InviteRequested.Invoke(vm);
-            }
-        }
-        finally
-        {
-            button.IsEnabled = true;
-            button.Content = "Пригласить";
         }
     }
 }

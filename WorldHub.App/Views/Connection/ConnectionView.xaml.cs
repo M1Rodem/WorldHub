@@ -2,10 +2,12 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using WorldHub.App.Services.Network;
+using WorldHub.App.Services.Settings;
 using WorldHub.App.Views.Dialogs;
 using WorldHub.App.Views.Settings;
 using WorldHub.Core.Entities;
 using WorldHub.Infrastructure.Google;
+using WorldHub.Logging;
 using WorldHub.Network.Services;
 using WorldHub.Sync.Services;
 
@@ -26,15 +28,19 @@ public partial class ConnectionView : UserControl
     private Guid? _selectedServerId;
     private WorldHubServer? _currentServer;
 
+    private readonly AppSettingsService _appSettingsService;
+
     public ConnectionView(
-        ServerService serverService,
-        WorldHubServerService worldHubServerService,
-        WorldHubNetworkService networkService,
-        RadminVpnDetector radminVpnDetector,
-        GoogleDriveStatusCache googleDriveStatusCache,
-        GoogleDriveClient googleDriveClient,
-        LocalParticipantProvider localParticipantProvider,
-        string localDeviceId)
+       ServerService serverService,
+       WorldHubServerService worldHubServerService,
+       WorldHubNetworkService networkService,
+       RadminVpnDetector radminVpnDetector,
+       GoogleDriveStatusCache googleDriveStatusCache,
+       GoogleDriveClient googleDriveClient,
+       LocalParticipantProvider localParticipantProvider,
+       WorldHubFolderSharingService worldHubFolderSharingService,
+       string localDeviceId,
+       AppSettingsService appSettingsService)
     {
         ArgumentNullException.ThrowIfNull(worldHubServerService);
         ArgumentNullException.ThrowIfNull(networkService);
@@ -43,33 +49,76 @@ public partial class ConnectionView : UserControl
         ArgumentNullException.ThrowIfNull(googleDriveStatusCache);
         ArgumentNullException.ThrowIfNull(googleDriveClient);
         ArgumentNullException.ThrowIfNull(localParticipantProvider);
+        ArgumentNullException.ThrowIfNull(worldHubFolderSharingService);
         ArgumentException.ThrowIfNullOrWhiteSpace(localDeviceId);
+        ArgumentNullException.ThrowIfNull(appSettingsService);
 
         _worldHubServerService = worldHubServerService;
         _serverService = serverService;
         _radminVpnDetector = radminVpnDetector;
         _googleDriveStatusCache = googleDriveStatusCache;
         _localParticipantProvider = localParticipantProvider;
+        _appSettingsService = appSettingsService;
 
         _checkService = new WorldHubParticipantCheckService(
             networkService,
             worldHubServerService,
-            localDeviceId);
+            localDeviceId,
+            () => appSettingsService.GetUserName(),
+            null,
+            () => googleDriveStatusCache.GetStatusString());
 
         InitializeComponent();
 
         RadminCard.Initialize(radminVpnDetector);
-        FolderSection.Initialize(googleDriveClient, worldHubServerService);
+        FolderSection.Initialize(
+            googleDriveClient,
+            worldHubServerService,
+            worldHubFolderSharingService);
+
         FolderSection.ServerUpdated += (_, updatedServer) => _currentServer = updatedServer;
 
-        ParticipantsSection.Initialize(_checkService, worldHubServerService, localDeviceId);
+        ParticipantsSection.Initialize(
+            _checkService,
+            worldHubServerService,
+            localDeviceId,
+            () => appSettingsService.GetUserName());
+
         ParticipantsSection.ParticipantCountChanged += (_, count) => UpdateParticipantCountUi(count);
-        ParticipantsSection.InviteRequested += async vm =>
+
+        ParticipantsSection.ParticipantCheckCompleted += async (_, _) =>
         {
-            var owner = Window.GetWindow(this);
-            if (owner is not null)
+            await FolderSection.RefreshFolderAccessAsync();
+            await FolderSection.ShareWithCurrentParticipantsAsync();
+        };
+
+        _appSettingsService.UserNameChanged += async (_, newUserName) =>
+        {
+            try
             {
-                await FolderSection.InviteParticipantAsync(vm, owner);
+                var servers = await _worldHubServerService.GetAllAsync();
+                foreach (var server in servers)
+                {
+                    var self = server.Participants.FirstOrDefault(p =>
+                        string.Equals(p.DeviceId, localDeviceId, StringComparison.OrdinalIgnoreCase));
+
+                    if (self is not null && self.UserName != newUserName)
+                    {
+                        self.UserName = newUserName;
+                        await _worldHubServerService.UpdateAsync(server);
+                    }
+                }
+
+                if (_selectedServerId is not null)
+                {
+                    await Dispatcher.InvokeAsync(async () =>
+                    {
+                        await ParticipantsSection.ReloadParticipantsAsync(_selectedServerId.Value);
+                    });
+                }
+            }
+            catch
+            {
             }
         };
 
@@ -85,7 +134,8 @@ public partial class ConnectionView : UserControl
         Unloaded += ConnectionView_Unloaded;
     }
 
-    private void UpdateParticipantCountUi(int count)
+    private void UpdateParticipantCountUi(
+        int count)
     {
         ParticipantCountText.Text =
             count == 0
@@ -126,15 +176,6 @@ public partial class ConnectionView : UserControl
         {
             return;
         }
-
-        if (_googleDriveStatusCache.IsInitialized &&
-            _selectedServerId is not null)
-        {
-            await ParticipantsSection.CheckAllParticipantsAsync(
-                _selectedServerId.Value,
-                cts.Token);
-        }
-
         if (cts.IsCancellationRequested)
         {
             return;
@@ -170,6 +211,9 @@ public partial class ConnectionView : UserControl
                         return;
                     }
 
+                    AppLog.Separator(
+                        $"Drive status updated, re-checking '{_currentServer?.Name ?? "server"}'");
+
                     await ParticipantsSection.CheckAllParticipantsAsync(
                         _selectedServerId.Value,
                         _pageCts.Token);
@@ -179,8 +223,9 @@ public partial class ConnectionView : UserControl
                 }
                 catch (Exception exception)
                 {
-                    System.Diagnostics.Debug.WriteLine(
-                        $"Drive update handler failed: {exception.Message}");
+                    AppLog.Warning(
+                        $"Drive update handler failed: {exception.Message}",
+                        exception);
                 }
             }));
     }
@@ -194,6 +239,9 @@ public partial class ConnectionView : UserControl
         {
             return;
         }
+
+        AppLog.Separator(
+            $"Auto-check of '{_currentServer?.Name ?? "server"}'");
 
         await ParticipantsSection.CheckAllParticipantsAsync(
             _selectedServerId.Value,

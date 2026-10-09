@@ -37,7 +37,6 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
-                            <!-- Строка 0: имя слева, Online/Offline справа -->
                             <TextBlock
                                 Grid.Row="0"
                                 Grid.Column="0"
@@ -72,7 +71,6 @@
                                     Foreground="{Binding OnlineBrush}"/>
                             </StackPanel>
 
-                            <!-- Строка 1: PcName · IP слева, Удалить справа -->
                             <TextBlock
                                 Grid.Row="1"
                                 Grid.Column="0"
@@ -110,7 +108,6 @@
                                 </Button.Style>
                             </Button>
 
-                            <!-- Строка 2: статусы слева, кнопки справа -->
                             <StackPanel
                                 Grid.Row="2"
                                 Grid.Column="0"
@@ -118,7 +115,6 @@
                                 Orientation="Horizontal"
                                 VerticalAlignment="Center">
 
-                                <!-- Ping -->
                                 <StackPanel
                                     Orientation="Horizontal"
                                     Margin="0,0,16,0">
@@ -137,7 +133,6 @@
                                         Foreground="{Binding PingBrush}"/>
                                 </StackPanel>
 
-                                <!-- WorldHub -->
                                 <StackPanel
                                     Orientation="Horizontal"
                                     Margin="0,0,16,0">
@@ -156,7 +151,6 @@
                                         Foreground="{Binding WorldHubBrush}"/>
                                 </StackPanel>
 
-                                <!-- Google Drive -->
                                 <StackPanel
                                     Orientation="Horizontal"
                                     Margin="0,0,16,0">
@@ -175,7 +169,6 @@
                                         Foreground="{Binding GoogleDriveBrush}"/>
                                 </StackPanel>
 
-                                <!-- Version -->
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock
                                         Text="Версия: "
@@ -198,30 +191,6 @@
                                 Orientation="Horizontal"
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Center">
-
-                                <Button
-                                    x:Name="InviteParticipantButton"
-                                    Width="110"
-                                    Height="28"
-                                    Margin="0,0,8,0"
-                                    Content="Пригласить"
-                                    Tag="{Binding}"
-                                    Click="InviteParticipantButton_Click">
-
-                                    <Button.Style>
-                                        <Style TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                            <Setter Property="FontSize" Value="11"/>
-                                            <Setter Property="Height" Value="28"/>
-                                            <Setter Property="Padding" Value="8,0"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding CanInviteToFolder}" Value="True">
-                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Button.Style>
-                                </Button>
 
                                 <Button
                                     Style="{StaticResource SecondaryButton}"

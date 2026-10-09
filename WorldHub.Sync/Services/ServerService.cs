@@ -1,6 +1,7 @@
-﻿using WorldHub.Core.Entities;
+using WorldHub.Core.Entities;
 using WorldHub.Core.Interfaces;
 using WorldHub.Core.Rules;
+using WorldHub.Logging;
 
 namespace WorldHub.Sync.Services;
 
@@ -73,6 +74,9 @@ public sealed class ServerService
         await _serverRepository.AddAsync(
             server,
             cancellationToken);
+
+        AppLog.Success(
+            $"[SERVER] Server '{server.Name}' registered at '{server.LocalPath}'");
 
         return server;
     }

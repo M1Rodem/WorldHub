@@ -1,7 +1,8 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using WorldHub.Core.Entities;
 using WorldHub.Core.Enums;
 using WorldHub.Infrastructure.Windows;
+using WorldHub.Logging;
 
 namespace WorldHub.Infrastructure.Minecraft;
 
@@ -90,6 +91,8 @@ public sealed class DedicatedServerProcessManager
             _statuses[server.Id] = ServerStatus.Starting;
         }
 
+        AppLog.Log($"[SERVER] Starting Minecraft server '{server.Name}' (ID: {server.Id})...");
+
         var logPath = Path.Combine(
             server.LocalPath,
             "logs",
@@ -120,13 +123,17 @@ public sealed class DedicatedServerProcessManager
             {
                 _statuses[server.Id] = ServerStatus.Running;
             }
+
+            AppLog.Success($"[SERVER] Minecraft server '{server.Name}' is ready and running (PID: {process.Id}).");
         }
-        catch
+        catch (Exception exception)
         {
             lock (_sync)
             {
                 _statuses[server.Id] = ServerStatus.Error;
             }
+
+            AppLog.Error($"[SERVER] Failed to start Minecraft server '{server.Name}': {exception.Message}", exception);
 
             if (process is not null)
             {
@@ -171,6 +178,8 @@ public sealed class DedicatedServerProcessManager
             _statuses[server.Id] = ServerStatus.Stopping;
         }
 
+        AppLog.Log($"[SERVER] Stopping Minecraft server '{server.Name}' (PID: {process.Id})...");
+
         try
         {
             _consoleService.SendCommand(
@@ -186,13 +195,16 @@ public sealed class DedicatedServerProcessManager
             }
 
             process.Dispose();
+            AppLog.Log($"[SERVER] Minecraft server '{server.Name}' stopped.");
         }
-        catch
+        catch (Exception exception)
         {
             lock (_sync)
             {
                 _statuses[server.Id] = ServerStatus.Error;
             }
+
+            AppLog.Error($"[SERVER] Error stopping server '{server.Name}': {exception.Message}", exception);
 
             throw;
         }

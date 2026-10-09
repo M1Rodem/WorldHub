@@ -7,6 +7,7 @@
   <Project Path="WorldHub.App/WorldHub.App.csproj" />
   <Project Path="WorldHub.Core/WorldHub.Core.csproj" />
   <Project Path="WorldHub.Infrastructure/WorldHub.Infrastructure.csproj" />
+  <Project Path="WorldHub.Logging/WorldHub.Logging.csproj" />
   <Project Path="WorldHub.Network/WorldHub.Network.csproj" />
   <Project Path="WorldHub.Sync/WorldHub.Sync.csproj" />
   <Project Path="WorldHub.Updater/WorldHub.Updater.csproj" Id="b9c09ba3-b38f-4254-a84c-ff86009a238e" />

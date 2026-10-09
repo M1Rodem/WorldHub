@@ -97,6 +97,8 @@ public sealed class AppSettingsService
         }
     }
 
+    public event EventHandler<string>? UserNameChanged;
+
     public void SaveUserName(string userName)
     {
         if (string.IsNullOrWhiteSpace(userName))
@@ -116,6 +118,8 @@ public sealed class AppSettingsService
                 settings.UserName = trimmed;
             });
         }
+
+        UserNameChanged?.Invoke(this, trimmed);
     }
 
     private static string? LoadDataPathFromRegistry()

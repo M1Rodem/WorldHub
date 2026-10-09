@@ -1,4 +1,5 @@
 using System.Windows;
+using WorldHub.App.Services.Diagnostics;
 using WorldHub.App.Services.Network;
 using WorldHub.App.Services.Settings;
 using WorldHub.App.Services.Update;
@@ -35,6 +36,7 @@ public partial class MainWindow
         GoogleDriveClient googleDriveClient,
         GoogleDriveStatusCache googleDriveStatusCache,
         LocalParticipantProvider localParticipantProvider,
+        WorldHubFolderSharingService worldHubFolderSharingService,
         string localDeviceId,
         AppVersionService appVersionService)
     {
@@ -66,7 +68,9 @@ public partial class MainWindow
             googleDriveStatusCache,
             googleDriveClient,
             localParticipantProvider,
-            localDeviceId);
+            worldHubFolderSharingService,
+            localDeviceId,
+            appSettingsService);
 
         _serversView = new ServersView(
             serverService,
@@ -130,6 +134,13 @@ public partial class MainWindow
     {
         SetActiveTab(NavTab.Servers);
         ContentHost.Content = _serversView;
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        DebugConsole.Close();
+        base.OnClosed(e);
+        Application.Current?.Shutdown();
     }
 
     private void SetActiveTab(NavTab tab)

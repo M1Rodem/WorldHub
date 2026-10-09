@@ -1,6 +1,7 @@
-﻿using global::Google.Apis.Auth.OAuth2;
+using global::Google.Apis.Auth.OAuth2;
 using global::Google.Apis.Auth.OAuth2.Flows;
 using global::Google.Apis.Util.Store;
+using WorldHub.Logging;
 
 namespace WorldHub.Infrastructure.Google;
 
@@ -87,20 +88,29 @@ public sealed class GoogleAuthService
         {
             throw;
         }
-        catch (global::Google.Apis.Auth.OAuth2.Responses.TokenResponseException)
+        catch (global::Google.Apis.Auth.OAuth2.Responses.TokenResponseException exception)
         {
+            AppLog.Warning(
+                $"[AUTH] Google token expired or invalid: {exception.Message}",
+                exception);
             return GoogleAuthCheckResult.TokenExpired;
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException exception)
         {
+            AppLog.Warning(
+                $"[AUTH] Google auth network error: {exception.Message}",
+                exception);
             return GoogleAuthCheckResult.NetworkError;
         }
         catch (TaskCanceledException)
         {
             return GoogleAuthCheckResult.NetworkError;
         }
-        catch
+        catch (Exception exception)
         {
+            AppLog.Error(
+                $"[AUTH] Unexpected Google auth check error: {exception.Message}",
+                exception);
             return GoogleAuthCheckResult.UnknownError;
         }
     }

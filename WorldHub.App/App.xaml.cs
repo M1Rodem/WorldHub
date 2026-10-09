@@ -12,6 +12,9 @@ using WorldHub.Network.Providers;
 using WorldHub.Network.Services;
 using WorldHub.Sync.Services;
 
+using WorldHub.App.Services.Diagnostics;
+using WorldHub.Logging;
+
 namespace WorldHub.App;
 
 public partial class App : Application
@@ -21,7 +24,23 @@ public partial class App : Application
     protected override void OnStartup(
         StartupEventArgs e)
     {
-        WorldHub.App.Services.Diagnostics.DebugConsole.Initialize();
+        DebugConsole.Initialize();
+        AppLog.SetLogger(new DebugConsoleLogger());
+        AppLog.Log("WorldHub logging system initialized.");
+
+        AppDomain.CurrentDomain.UnhandledException += (s, args) =>
+        {
+            if (args.ExceptionObject is Exception ex)
+            {
+                AppLog.Error($"[FATAL] AppDomain unhandled exception: {ex.Message}", ex);
+            }
+        };
+
+        DispatcherUnhandledException += (s, args) =>
+        {
+            AppLog.Error($"[ERROR] UI Dispatcher unhandled exception: {args.Exception.Message}", args.Exception);
+        };
+
         base.OnStartup(e);
 
         ShutdownMode =
@@ -85,6 +104,11 @@ public partial class App : Application
             new WorldHubServerService(
                 worldHubServerRepository);
 
+        var worldHubFolderSharingService =
+            new WorldHubFolderSharingService(
+                googleDriveClient,
+                worldHubServerService);
+
         // === Теперь создаём WorldHubNetworkService ===
 
         _worldHubNetworkService =
@@ -133,6 +157,45 @@ public partial class App : Application
                     catch
                     {
                         return new ServerInfo(null, null);
+                    }
+                },
+                async (remoteProfile, remoteIp, cancellationToken) =>
+                {
+                    try
+                    {
+                        var servers = await worldHubServerService.GetAllAsync(cancellationToken);
+                        foreach (var server in servers)
+                        {
+                            var match = server.Participants.FirstOrDefault(p =>
+                                (!string.IsNullOrWhiteSpace(p.DeviceId) &&
+                                 string.Equals(p.DeviceId, remoteProfile.DeviceId, StringComparison.OrdinalIgnoreCase)) ||
+                                (!string.IsNullOrWhiteSpace(remoteIp) &&
+                                 string.Equals(p.IpAddress, remoteIp, StringComparison.OrdinalIgnoreCase)));
+
+                            if (match is not null)
+                            {
+                                match.DeviceId = remoteProfile.DeviceId;
+                                match.UserName = remoteProfile.UserName;
+                                match.PcName = remoteProfile.PcName;
+                                match.WorldHubVersion = remoteProfile.WorldHubVersion;
+                                match.WorldHubStatus = remoteProfile.WorldHubStatus;
+                                match.GoogleDriveStatus = remoteProfile.GoogleDriveStatus;
+                                match.GoogleEmail = remoteProfile.GoogleEmail;
+                                match.IsPingAvailable = true;
+                                match.IsWorldHubResponding = true;
+                                match.LastCheckAtUtc = DateTimeOffset.UtcNow;
+                                match.LastSeenAtUtc = DateTimeOffset.UtcNow;
+
+                                await worldHubServerService.UpdateAsync(server, cancellationToken);
+
+                                AppLog.Success(
+                                    $"[PEER] Automatically updated remote participant '{match.UserName ?? match.IpAddress}' from incoming handshake.");
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        AppLog.Warning($"Failed to update participant from incoming handshake: {ex.Message}", ex);
                     }
                 });
 
@@ -188,6 +251,7 @@ public partial class App : Application
             googleDriveClient,
             googleDriveStatusCache,
             localParticipantProvider,
+            worldHubFolderSharingService,
             deviceId,
             appVersionService);
 
@@ -198,10 +262,34 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
-        _worldHubNetworkService?.Dispose();
+        try
+        {
+            _worldHubNetworkService?.Dispose();
+        }
+        catch
+        {
+        }
         _worldHubNetworkService = null;
-        WorldHub.App.Services.Diagnostics.DebugConsole.Close();
+
+        try
+        {
+            AppLog.Log("WorldHub shutting down.");
+            AppLog.SetLogger(NullLogger.Instance);
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            DebugConsole.Close();
+        }
+        catch
+        {
+        }
 
         base.OnExit(e);
+
+        Environment.Exit(e.ApplicationExitCode);
     }
 }

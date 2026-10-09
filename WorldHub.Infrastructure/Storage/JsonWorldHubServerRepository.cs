@@ -1,6 +1,7 @@
 using System.Text.Json;
 using WorldHub.Core.Entities;
 using WorldHub.Core.Interfaces;
+using WorldHub.Logging;
 
 namespace WorldHub.Infrastructure.Storage;
 
@@ -48,8 +49,11 @@ public sealed class JsonWorldHubServerRepository : IWorldHubServerRepository
                 JsonOptions,
                 cancellationToken);
         }
-        catch (JsonException)
+        catch (JsonException exception)
         {
+            AppLog.Warning(
+                $"[STORAGE] Failed to parse WorldHub server at '{filePath}': {exception.Message}",
+                exception);
             return null;
         }
     }
@@ -89,9 +93,11 @@ public sealed class JsonWorldHubServerRepository : IWorldHubServerRepository
                     result.Add(worldHubServer);
                 }
             }
-            catch (JsonException)
+            catch (JsonException exception)
             {
-                // Пропускаем повреждённый файл, чтобы не блокировать остальные данные
+                AppLog.Warning(
+                    $"[STORAGE] Skipped corrupted WorldHub server file '{filePath}': {exception.Message}",
+                    exception);
             }
         }
 

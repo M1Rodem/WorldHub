@@ -1,6 +1,6 @@
 using System.IO;
 using System.Net.Sockets;
-using WorldHub.App.Services.Diagnostics;
+using WorldHub.Logging;
 using WorldHub.Network.Interfaces;
 using WorldHub.Network.Models;
 using WorldHub.Network.Protocol;
@@ -24,6 +24,7 @@ public sealed class WorldHubNetworkService : IDisposable
     private readonly Func<string> _googleDriveStatusProvider;
     private readonly Func<CancellationToken, Task<string?>> _googleEmailProvider;
     private readonly Func<string, CancellationToken, Task<ServerInfo>> _serverInfoProvider;
+    private readonly Func<PeerInfo, string, CancellationToken, Task>? _remoteProfileReceivedHandler;
     private readonly CancellationTokenSource _disposeCts = new();
 
     private bool _disposed;
@@ -37,6 +38,7 @@ public sealed class WorldHubNetworkService : IDisposable
         Func<string> googleDriveStatusProvider,
         Func<CancellationToken, Task<string?>> googleEmailProvider,
         Func<string, CancellationToken, Task<ServerInfo>> serverInfoProvider,
+        Func<PeerInfo, string, CancellationToken, Task>? remoteProfileReceivedHandler = null,
         int port = DefaultPort)
     {
         ArgumentNullException.ThrowIfNull(networkService);
@@ -61,14 +63,15 @@ public sealed class WorldHubNetworkService : IDisposable
         _googleDriveStatusProvider = googleDriveStatusProvider;
         _googleEmailProvider = googleEmailProvider;
         _serverInfoProvider = serverInfoProvider;
+        _remoteProfileReceivedHandler = remoteProfileReceivedHandler;
         Port = port;
 
         _networkHost = new NetworkHost(
             networkService,
             port,
             HandleConnectionAsync,
-            DebugConsole.Log,
-            DebugConsole.Error);
+            AppLog.Log,
+            message => AppLog.Error(message));
     }
 
     public int Port { get; }
@@ -114,14 +117,14 @@ public sealed class WorldHubNetworkService : IDisposable
         }
         catch (OperationCanceledException)
         {
-            DebugConsole.Log(
+            AppLog.Log(
                 $"WorldHub TCP timeout for {host}.");
 
             return PeerCheckResult.TcpUnavailable();
         }
         catch (Exception exception)
         {
-            DebugConsole.Log(
+            AppLog.Log(
                 $"WorldHub TCP unavailable for {host}: {exception.Message}");
 
             return PeerCheckResult.TcpUnavailable();
@@ -146,14 +149,14 @@ public sealed class WorldHubNetworkService : IDisposable
             }
             catch (OperationCanceledException)
             {
-                DebugConsole.Log(
+                AppLog.Log(
                     $"WorldHub handshake timeout for {host}.");
 
                 return PeerCheckResult.HandshakeFailed();
             }
             catch (Exception exception)
             {
-                DebugConsole.Log(
+                AppLog.Log(
                     $"WorldHub handshake failed for {host}: {exception.Message}");
 
                 return PeerCheckResult.HandshakeFailed();
@@ -161,6 +164,8 @@ public sealed class WorldHubNetworkService : IDisposable
 
             try
             {
+                AppLog.Log($"[NET] → PING to {host}");
+
                 await WorldTransferProtocol.SendMessageAsync(
                     connection,
                     PeerProtocol.Ping,
@@ -170,11 +175,15 @@ public sealed class WorldHubNetworkService : IDisposable
                     connection,
                     token);
 
+                AppLog.Log($"[NET] ← {pong} from {host}");
+
                 if (pong != PeerProtocol.Pong)
                 {
                     throw new InvalidDataException(
                         $"Expected PONG, received '{pong}'.");
                 }
+
+                AppLog.Log($"[NET] → WORLDHUB to {host}");
 
                 await WorldTransferProtocol.SendMessageAsync(
                     connection,
@@ -184,6 +193,8 @@ public sealed class WorldHubNetworkService : IDisposable
                 var response = await WorldTransferProtocol.ReceiveMessageAsync(
                     connection,
                     token);
+
+                AppLog.Log($"[NET] ← {response} from {host}");
 
                 if (response != PeerProtocol.WorldHubOk)
                 {
@@ -196,8 +207,31 @@ public sealed class WorldHubNetworkService : IDisposable
                         connection,
                         token);
 
-                DebugConsole.Log(
-                    $"WorldHub peer verified: {host}, {profile.PcName}");
+                AppLog.Log(
+                    $"[NET] ← PeerInfo from {host}: " +
+                    $"user={profile.UserName}, pc={profile.PcName}, " +
+                    $"version={profile.WorldHubVersion}, " +
+                    $"email={profile.GoogleEmail ?? "(none)"}, " +
+                    $"drive={profile.GoogleDriveStatus}");
+
+                try
+                {
+                    var localProfile = await CreateLocalProfileAsync(token);
+
+                    AppLog.Log(
+                        $"[NET] → PeerInfo to {host}: " +
+                        $"user={localProfile.UserName}, pc={localProfile.PcName}, " +
+                        $"email={localProfile.GoogleEmail ?? "(none)"}");
+
+                    await WorldTransferProtocol.SendJsonAsync(
+                        connection,
+                        localProfile,
+                        token);
+                }
+                catch
+                {
+                    // Игнорируем: если удалённый пир старой версии сразу закрыл соединение
+                }
 
                 return PeerCheckResult.ProfileReceived(profile);
             }
@@ -208,14 +242,14 @@ public sealed class WorldHubNetworkService : IDisposable
             }
             catch (OperationCanceledException)
             {
-                DebugConsole.Log(
+                AppLog.Log(
                     $"WorldHub protocol timeout for {host}.");
 
                 return PeerCheckResult.ProtocolFailed();
             }
             catch (Exception exception)
             {
-                DebugConsole.Log(
+                AppLog.Log(
                     $"WorldHub protocol failed for {host}: {exception.Message}");
 
                 return PeerCheckResult.ProtocolFailed();
@@ -319,9 +353,15 @@ public sealed class WorldHubNetworkService : IDisposable
         // Ветка WORLDHUB_SERVER_INFO — без PING/PONG.
         if (command == ServerInfoProtocol.ServerInfoRequest)
         {
+            var remoteEndPoint = connection.Client.Client.RemoteEndPoint?.ToString() ?? "?";
+
             var remoteDeviceId = await WorldTransferProtocol.ReceiveMessageAsync(
                 connection,
                 cancellationToken);
+
+            AppLog.Log(
+                $"[NET] ← WORLDHUB_SERVER_INFO from {remoteEndPoint}, " +
+                $"requested DeviceId={remoteDeviceId}");
 
             ServerInfo info;
 
@@ -336,6 +376,11 @@ public sealed class WorldHubNetworkService : IDisposable
                 info = new ServerInfo(null, null);
             }
 
+            AppLog.Log(
+                $"[NET] → WORLDHUB_SERVER_INFO_OK to {remoteEndPoint}: " +
+                $"folderId={info.GoogleDriveFolderId ?? "(none)"}, " +
+                $"owner={info.GoogleDriveOwnerEmail ?? "(none)"}");
+
             await WorldTransferProtocol.SendMessageAsync(
                 connection,
                 ServerInfoProtocol.ServerInfoResponse,
@@ -346,14 +391,17 @@ public sealed class WorldHubNetworkService : IDisposable
                 info,
                 cancellationToken);
 
-            DebugConsole.Log(
-                $"WorldHub server info sent to {connection.Client.Client.RemoteEndPoint}.");
-
             return;
         }
 
+        var incomingEndPoint = connection.Client.Client.RemoteEndPoint?.ToString() ?? "?";
+
         if (command != PeerProtocol.Ping)
         {
+            AppLog.Warning(
+                $"[NET] ← Unexpected command '{command}' from {incomingEndPoint}, " +
+                $"responding ERROR.");
+
             await WorldTransferProtocol.SendMessageAsync(
                 connection,
                 PeerProtocol.Error,
@@ -361,6 +409,9 @@ public sealed class WorldHubNetworkService : IDisposable
 
             return;
         }
+
+        AppLog.Log($"[NET] ← PING from {incomingEndPoint}");
+        AppLog.Log($"[NET] → PONG to {incomingEndPoint}");
 
         await WorldTransferProtocol.SendMessageAsync(
             connection,
@@ -373,6 +424,10 @@ public sealed class WorldHubNetworkService : IDisposable
 
         if (command != PeerProtocol.WorldHub)
         {
+            AppLog.Warning(
+                $"[NET] ← Unexpected command '{command}' from {incomingEndPoint}, " +
+                $"responding ERROR.");
+
             await WorldTransferProtocol.SendMessageAsync(
                 connection,
                 PeerProtocol.Error,
@@ -381,6 +436,9 @@ public sealed class WorldHubNetworkService : IDisposable
             return;
         }
 
+        AppLog.Log($"[NET] ← WORLDHUB from {incomingEndPoint}");
+        AppLog.Log($"[NET] → WORLDHUB_OK to {incomingEndPoint}");
+
         await WorldTransferProtocol.SendMessageAsync(
             connection,
             PeerProtocol.WorldHubOk,
@@ -388,13 +446,49 @@ public sealed class WorldHubNetworkService : IDisposable
 
         var profile = await CreateLocalProfileAsync(cancellationToken);
 
+        AppLog.Log(
+            $"[NET] → PeerInfo to {incomingEndPoint}: " +
+            $"user={profile.UserName}, pc={profile.PcName}, " +
+            $"email={profile.GoogleEmail ?? "(none)"}, " +
+            $"drive={profile.GoogleDriveStatus}");
+
         await WorldTransferProtocol.SendJsonAsync(
             connection,
             profile,
             cancellationToken);
 
-        DebugConsole.Log(
-            $"WorldHub profile sent to {connection.Client.Client.RemoteEndPoint}.");
+        if (_remoteProfileReceivedHandler is not null)
+        {
+            try
+            {
+                using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+                    cancellationToken,
+                    timeoutCts.Token);
+
+                var callerProfile = await WorldTransferProtocol.ReceiveJsonAsync<PeerInfo>(
+                    connection,
+                    linkedCts.Token);
+
+                if (callerProfile is not null)
+                {
+                    var remoteIp = string.Empty;
+                    if (connection.Client.Client.RemoteEndPoint is System.Net.IPEndPoint endPoint)
+                    {
+                        remoteIp = endPoint.Address.ToString();
+                    }
+
+                    await _remoteProfileReceivedHandler(
+                        callerProfile,
+                        remoteIp,
+                        cancellationToken);
+                }
+            }
+            catch
+            {
+                // Игнорируем: если клиент старой версии не отправил ответный профиль
+            }
+        }
     }
 
     private async Task<PeerInfo> CreateLocalProfileAsync(
@@ -426,6 +520,10 @@ public sealed class WorldHubNetworkService : IDisposable
         {
             googleEmail = null;
         }
+
+        AppLog.Log(
+            $"[NET] Local profile: {userName} / {Environment.MachineName} / " +
+            $"v{version} / email: {googleEmail ?? "(none)"} / drive: {googleDriveStatus}");
 
         return new PeerInfo(
             _deviceId,

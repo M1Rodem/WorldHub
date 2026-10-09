@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
-using WorldHub.App.Services.Diagnostics;
 using WorldHub.Core.Entities;
+using WorldHub.Logging;
 using WorldHub.Sync.Services;
 
 namespace WorldHub.App.Services.Network;
@@ -12,10 +12,17 @@ public sealed class WorldHubParticipantCheckService
     private readonly string? _localDeviceId;
     private readonly ConcurrentDictionary<Guid, SemaphoreSlim> _gates = new();
 
+    private readonly Func<string>? _userNameProvider;
+    private readonly Func<string>? _versionProvider;
+    private readonly Func<string>? _googleDriveStatusProvider;
+
     public WorldHubParticipantCheckService(
         WorldHubNetworkService networkService,
         WorldHubServerService serverService,
-        string? localDeviceId = null)
+        string? localDeviceId = null,
+        Func<string>? userNameProvider = null,
+        Func<string>? versionProvider = null,
+        Func<string>? googleDriveStatusProvider = null)
     {
         ArgumentNullException.ThrowIfNull(networkService);
         ArgumentNullException.ThrowIfNull(serverService);
@@ -23,6 +30,9 @@ public sealed class WorldHubParticipantCheckService
         _networkService = networkService;
         _serverService = serverService;
         _localDeviceId = localDeviceId;
+        _userNameProvider = userNameProvider;
+        _versionProvider = versionProvider;
+        _googleDriveStatusProvider = googleDriveStatusProvider;
     }
 
     private SemaphoreSlim GetGate(Guid worldHubServerId)
@@ -100,8 +110,9 @@ public sealed class WorldHubParticipantCheckService
                 }
                 catch (Exception exception)
                 {
-                    DebugConsole.Error(
-                        $"Participant check failed: {exception.Message}");
+                    AppLog.Error(
+                        $"Participant check failed: {exception.Message}",
+                        exception);
                 }
             }
         }
@@ -165,9 +176,9 @@ public sealed class WorldHubParticipantCheckService
     }
 
     private async Task CheckParticipantCoreAsync(
-    Guid worldHubServerId,
-    Guid participantId,
-    CancellationToken cancellationToken)
+        Guid worldHubServerId,
+        Guid participantId,
+        CancellationToken cancellationToken)
     {
         var server = await _serverService.GetByIdAsync(
             worldHubServerId,
@@ -186,7 +197,10 @@ public sealed class WorldHubParticipantCheckService
             return;
         }
 
-        // Себя не проверяем — мы точно Online.
+        AppLog.Log(
+            $"[PEER] Checking participant {participant.IpAddress} ...");
+
+        // Себя не пингуем по сети — обновляем актуальные локальные данные профиля.
         if (!string.IsNullOrWhiteSpace(_localDeviceId) &&
             !string.IsNullOrWhiteSpace(participant.DeviceId) &&
             string.Equals(
@@ -199,12 +213,31 @@ public sealed class WorldHubParticipantCheckService
             participant.LastCheckAtUtc = DateTimeOffset.UtcNow;
             participant.LastSeenAtUtc = DateTimeOffset.UtcNow;
 
+            var currentUserName = _userNameProvider?.Invoke();
+            if (!string.IsNullOrWhiteSpace(currentUserName))
+            {
+                participant.UserName = currentUserName;
+            }
+
+            participant.PcName = Environment.MachineName;
+            participant.WorldHubStatus = "Online";
+
+            if (_versionProvider is not null)
+            {
+                participant.WorldHubVersion = _versionProvider();
+            }
+
+            if (_googleDriveStatusProvider is not null)
+            {
+                participant.GoogleDriveStatus = _googleDriveStatusProvider();
+            }
+
             await _serverService.UpdateAsync(
                 server,
                 cancellationToken);
 
-            DebugConsole.Log(
-                $"Participant {participant.IpAddress}: skipped (self).");
+            AppLog.Log(
+                $"[SELF] {participant.IpAddress}: updated local profile (UserName: {participant.UserName}).");
 
             return;
         }
@@ -231,8 +264,8 @@ public sealed class WorldHubParticipantCheckService
                 participant.IsPingAvailable = false;
                 participant.IsWorldHubResponding = false;
 
-                DebugConsole.Log(
-                    $"Participant {participant.IpAddress}: TCP unavailable.");
+                AppLog.Log(
+                    $"[PEER] {participant.IpAddress}: TCP unavailable.");
                 break;
 
             case PeerCheckOutcome.HandshakeFailed:
@@ -240,8 +273,8 @@ public sealed class WorldHubParticipantCheckService
                 participant.IsPingAvailable = true;
                 participant.IsWorldHubResponding = false;
 
-                DebugConsole.Log(
-                    $"Participant {participant.IpAddress}: " +
+                AppLog.Log(
+                    $"[PEER] {participant.IpAddress}: " +
                     $"TCP available, WorldHub not responding ({result.Outcome}).");
                 break;
 
@@ -261,13 +294,29 @@ public sealed class WorldHubParticipantCheckService
                 participant.GoogleEmail = profile.GoogleEmail;
                 participant.LastSeenAtUtc = DateTimeOffset.UtcNow;
 
-                DebugConsole.Log(
-                    $"Participant {participant.IpAddress} verified: " +
+                AppLog.Success(
+                    $"[PEER] {participant.IpAddress} verified: " +
                     $"{profile.PcName} / {profile.UserName}");
+
+                AppLog.Log(
+                    $"[PEER]   DeviceId:       {profile.DeviceId}");
+                AppLog.Log(
+                    $"[PEER]   UserName:       {profile.UserName}");
+                AppLog.Log(
+                    $"[PEER]   PcName:         {profile.PcName}");
+                AppLog.Log(
+                    $"[PEER]   Version:        {profile.WorldHubVersion}");
+                AppLog.Log(
+                    $"[PEER]   DriveStatus:    {profile.GoogleDriveStatus}");
+                AppLog.Log(
+                    $"[PEER]   GoogleEmail:    {profile.GoogleEmail ?? "(none)"}");
 
                 // Если у нас ещё нет FolderId — попробуем получить его у A.
                 if (string.IsNullOrWhiteSpace(server.GoogleDriveFolderId))
                 {
+                    AppLog.Log(
+                        $"[FOLDER] Requesting FolderId from {participant.IpAddress} ...");
+
                     var serverInfo = await _networkService.RequestServerInfoAsync(
                         participant.IpAddress,
                         cancellationToken);
@@ -278,9 +327,15 @@ public sealed class WorldHubParticipantCheckService
                         server.GoogleDriveFolderId = serverInfo.GoogleDriveFolderId;
                         server.GoogleDriveOwnerEmail = serverInfo.GoogleDriveOwnerEmail;
 
-                        DebugConsole.Log(
-                            $"FolderId received from {participant.IpAddress}: " +
-                            $"{serverInfo.GoogleDriveFolderId}");
+                        AppLog.Success(
+                            $"[FOLDER] FolderId received: {serverInfo.GoogleDriveFolderId}");
+                        AppLog.Log(
+                            $"[FOLDER] Owner email: {serverInfo.GoogleDriveOwnerEmail ?? "(none)"}");
+                    }
+                    else
+                    {
+                        AppLog.Warning(
+                            $"[FOLDER] No FolderId received from {participant.IpAddress}.");
                     }
                 }
 

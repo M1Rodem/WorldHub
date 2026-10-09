@@ -1,6 +1,7 @@
 using System.Text.Json;
 using WorldHub.Core.Entities;
 using WorldHub.Core.Interfaces;
+using WorldHub.Logging;
 
 namespace WorldHub.Infrastructure.Storage;
 
@@ -49,8 +50,11 @@ public sealed class JsonServerRepository : IServerRepository
                 _jsonOptions,
                 cancellationToken);
         }
-        catch (JsonException)
+        catch (JsonException exception)
         {
+            AppLog.Warning(
+                $"[STORAGE] Failed to parse server configuration at '{filePath}': {exception.Message}",
+                exception);
             return null;
         }
     }
@@ -89,9 +93,11 @@ public sealed class JsonServerRepository : IServerRepository
                     servers.Add(server);
                 }
             }
-            catch (JsonException)
+            catch (JsonException exception)
             {
-                // Повреждённый JSON пропускаем, чтобы не блокировать остальные серверы
+                AppLog.Warning(
+                    $"[STORAGE] Skipped corrupted server configuration at '{file}': {exception.Message}",
+                    exception);
             }
         }
 
