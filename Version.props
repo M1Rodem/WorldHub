@@ -2,7 +2,7 @@
 
   <PropertyGroup>
 
-    <WorldHubVersion>0.3.4</WorldHubVersion>
+    <WorldHubVersion>0.3.5</WorldHubVersion>
 
     <Version>$(WorldHubVersion)</Version>
 
@@ -15,19 +15,3 @@
   </PropertyGroup>
 
 </Project>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

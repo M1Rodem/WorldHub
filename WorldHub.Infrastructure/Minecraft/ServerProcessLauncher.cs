@@ -29,8 +29,8 @@ public sealed class ServerProcessLauncher
     }
 
     private static Process LaunchScript(
-    Server server,
-    ServerLaunchConfiguration configuration)
+        Server server,
+        ServerLaunchConfiguration configuration)
     {
         var scriptPath = GetAbsolutePath(
             server.LocalPath,
@@ -43,12 +43,23 @@ public sealed class ServerProcessLauncher
                 scriptPath);
         }
 
-        var commandLine =
-            $"cmd.exe /c \"call \"\"{scriptPath}\"\" & exit /b\"";
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "cmd.exe",
+            WorkingDirectory = server.LocalPath,
+            UseShellExecute = false,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = false,
+            RedirectStandardError = false,
+            CreateNoWindow = false
+        };
 
-        return NativeProcessLauncher.StartNewConsole(
-            commandLine,
-            server.LocalPath);
+        startInfo.ArgumentList.Add("/c");
+        startInfo.ArgumentList.Add(scriptPath);
+
+        return Process.Start(startInfo)
+            ?? throw new InvalidOperationException(
+                "Failed to start Minecraft server script.");
     }
 
     private static Process LaunchJar(

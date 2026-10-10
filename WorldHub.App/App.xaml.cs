@@ -301,6 +301,17 @@ public partial class App : Application
                                 });
                             }
 
+                            if (Current?.Dispatcher is { } dispatcher)
+                            {
+                                dispatcher.Invoke(() =>
+                                {
+                                    if (Current?.MainWindow is MainWindow mainWindow)
+                                    {
+                                        mainWindow.ReloadServerList(createdServer.Id);
+                                    }
+                                });
+                            }
+
                             return true;
                         });
 

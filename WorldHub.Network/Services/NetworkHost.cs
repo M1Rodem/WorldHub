@@ -8,7 +8,7 @@ namespace WorldHub.Network.Services;
 public sealed class NetworkHost : IDisposable
 {
     private static readonly TimeSpan ConnectionHandlerTimeout =
-        TimeSpan.FromSeconds(10);
+        TimeSpan.FromMinutes(1);
 
     private readonly NetworkService _networkService;
     private readonly int _port;

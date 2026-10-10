@@ -287,6 +287,7 @@ public partial class DownloadServerFromWorldHubWindow : Window
 
             var createdServer = await _serverService.CreateAsync(manifest.ServerName, detection);
             createdServer.WorldHubServerId = _selectedWorldHubServer.Id;
+            createdServer.IsImportedFromWorldHub = true;
             await _serverService.UpdateAsync(createdServer);
 
             AppLog.Success($"[SERVER] Сервер «{createdServer.Name}» успешно добавлен и привязан к WorldHub «{_selectedWorldHubServer.Name}».");

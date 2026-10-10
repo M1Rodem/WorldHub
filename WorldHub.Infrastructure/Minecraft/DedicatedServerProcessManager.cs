@@ -211,18 +211,28 @@ public sealed class DedicatedServerProcessManager
     }
 
     private async Task WaitForReadyAsync(
-        Guid serverId,
-        string logPath,
-        long initialPosition,
-        CancellationToken cancellationToken)
+    Guid serverId,
+    string logPath,
+    long initialPosition,
+    CancellationToken cancellationToken)
     {
         const string readyMarker = "available and ready to play";
+
+        // Для ванильного сервера 1.20 хватает 2 минут, для Forge с модами — до 15.
+        var startTimeout = TimeSpan.FromMinutes(15);
+        var startedAt = DateTime.UtcNow;
 
         var position = initialPosition;
 
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
+
+            if (DateTime.UtcNow - startedAt > startTimeout)
+            {
+                throw new TimeoutException(
+                    $"Minecraft server did not become ready within {startTimeout.TotalMinutes:F0} minutes.");
+            }
 
             Process? process;
 
@@ -233,8 +243,18 @@ public sealed class DedicatedServerProcessManager
 
             if (process is null || process.HasExited)
             {
-                throw new InvalidOperationException(
-                    "Minecraft server exited before becoming ready.");
+                var exitCode = process?.HasExited == true
+                    ? process.ExitCode
+                    : (int?)null;
+
+                var logTail = TryReadLogTail(logPath, maxLines: 30);
+
+                var message =
+                    "Minecraft server exited before becoming ready." +
+                    (exitCode.HasValue ? $" ExitCode={exitCode.Value}." : "") +
+                    (string.IsNullOrWhiteSpace(logTail) ? "" : $"\n\nПоследние строки лога:\n{logTail}");
+
+                throw new InvalidOperationException(message);
             }
 
             if (!File.Exists(logPath))
@@ -292,6 +312,42 @@ public sealed class DedicatedServerProcessManager
             await Task.Delay(
                 TimeSpan.FromMilliseconds(250),
                 cancellationToken);
+        }
+    }
+
+    private static string TryReadLogTail(string logPath, int maxLines)
+    {
+        try
+        {
+            if (!File.Exists(logPath))
+            {
+                return string.Empty;
+            }
+
+            using var stream = new FileStream(
+                logPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+
+            using var reader = new StreamReader(stream, System.Text.Encoding.UTF8);
+
+            var lines = new Queue<string>(maxLines);
+
+            while (reader.ReadLine() is { } line)
+            {
+                if (lines.Count == maxLines)
+                {
+                    lines.Dequeue();
+                }
+                lines.Enqueue(line);
+            }
+
+            return string.Join("\n", lines);
+        }
+        catch
+        {
+            return string.Empty;
         }
     }
 

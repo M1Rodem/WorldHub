@@ -61,6 +61,12 @@ public partial class MinecraftServerSettingsView : UserControl
 
         InitializeComponent();
 
+        if (_server.IsImportedFromWorldHub)
+        {
+            WorldHubServerComboBox.IsEnabled = false;
+            SaveWorldHubServerButton.Visibility = Visibility.Collapsed;
+        }
+
         ServerNameTextBlock.Text = server.Name;
 
         ServerPathTextBlock.Text =
@@ -93,7 +99,17 @@ public partial class MinecraftServerSettingsView : UserControl
             // К WorldHub-серверу может привязать Minecraft-сервер только хост (создатель).
             // Фильтруем серверы: показываем только те, где локальный пользователь является хостом.
             IReadOnlyList<WorldHubServer> selectableServers;
-            if (!string.IsNullOrWhiteSpace(_localDeviceId))
+
+            if (_server.IsImportedFromWorldHub && _server.WorldHubServerId is Guid importedId)
+            {
+                // Импортированный Minecraft-сервер: показываем только тот WorldHub-сервер,
+                // к которому он привязан, независимо от того, хост ли локальный пользователь.
+                var imported = allServers.FirstOrDefault(s => s.Id == importedId);
+                selectableServers = imported is not null
+                    ? new List<WorldHubServer> { imported }
+                    : new List<WorldHubServer>();
+            }
+            else if (!string.IsNullOrWhiteSpace(_localDeviceId))
             {
                 selectableServers = allServers.Where(s =>
                 {
@@ -150,6 +166,11 @@ public partial class MinecraftServerSettingsView : UserControl
             return;
         }
 
+        if (_server.IsImportedFromWorldHub)
+        {
+            return;
+        }
+
         Guid? worldHubServerId = WorldHubServerComboBox.SelectedValue as Guid?;
 
         if (_server.WorldHubServerId == worldHubServerId)
@@ -182,6 +203,11 @@ public partial class MinecraftServerSettingsView : UserControl
         object sender,
         RoutedEventArgs e)
     {
+        if (_server.IsImportedFromWorldHub)
+        {
+            return;
+        }
+
         var owner = Window.GetWindow(this);
         Guid? worldHubServerId = WorldHubServerComboBox.SelectedValue as Guid?;
 

@@ -12,4 +12,5 @@ public sealed class Server
     public required ServerLaunchConfiguration LaunchConfiguration { get; set; }
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; set; }
+    public bool IsImportedFromWorldHub { get; set; }
 }

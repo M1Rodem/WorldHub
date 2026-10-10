@@ -39,8 +39,22 @@ public static class DebugConsole
 
         _consoleHwnd = GetConsoleWindow();
 
-        _stdout = new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true };
-        _stderr = new StreamWriter(Console.OpenStandardError()) { AutoFlush = true };
+        // Устанавливаем UTF-8 для консоли и для потоков вывода.
+        try
+        {
+            Console.OutputEncoding = System.Text.Encoding.UTF8;
+            Console.InputEncoding = System.Text.Encoding.UTF8;
+        }
+        catch
+        {
+            // на некоторых системах установка кодировки может упасть,
+            // продолжаем работу с кодировкой по умолчанию
+        }
+
+        var utf8NoBom = new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+
+        _stdout = new StreamWriter(Console.OpenStandardOutput(), utf8NoBom) { AutoFlush = true };
+        _stderr = new StreamWriter(Console.OpenStandardError(), utf8NoBom) { AutoFlush = true };
         Console.SetOut(_stdout);
         Console.SetError(_stderr);
 

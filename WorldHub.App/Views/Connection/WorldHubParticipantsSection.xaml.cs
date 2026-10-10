@@ -229,11 +229,6 @@ public partial class WorldHubParticipantsSection : UserControl
 
         AppLog.Separator($"Sending invite to {targetIp} for '{server.Name}'");
 
-        DialogWindow.ShowInformation(
-            owner,
-            "Приглашение отправлено",
-            $"Приглашение отправлено на {targetIp}.\nОжидаем ответ друга...");
-
         var serverName = server.Name;
 
         _ = Task.Run(async () =>
