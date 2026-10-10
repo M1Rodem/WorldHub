@@ -13,6 +13,7 @@ using WorldHub.Network.Services;
 using WorldHub.Sync.Services;
 
 using WorldHub.App.Services.Diagnostics;
+using WorldHub.App.Views.Dialogs;
 using WorldHub.Logging;
 
 namespace WorldHub.App;
@@ -196,6 +197,76 @@ public partial class App : Application
                     catch (Exception ex)
                     {
                         AppLog.Warning($"Failed to update participant from incoming handshake: {ex.Message}", ex);
+                    }
+                },
+                async (inviteRequest, cancellationToken) =>
+                {
+                    try
+                    {
+                        var task = Current?.Dispatcher.InvokeAsync(async () =>
+                        {
+                            var owner = Current?.MainWindow;
+                            var message =
+                                $"Вас приглашает {inviteRequest.OwnerUserName} в WorldHub-сервер «{inviteRequest.ServerName}».\n\nПринять?";
+
+                            var accepted = DialogWindow.ShowConfirmation(
+                                owner,
+                                "Приглашение в WorldHub-сервер",
+                                message);
+
+                            if (!accepted)
+                            {
+                                return false;
+                            }
+
+                            var localUserName = settingsService.GetUserName();
+                            if (string.IsNullOrWhiteSpace(localUserName))
+                            {
+                                localUserName = Environment.UserName;
+                            }
+
+                            var radminAdapter = radminVpnDetector.FindAdapter();
+                            var localIp = radminAdapter?.Address.ToString() ?? "127.0.0.1";
+
+                            var createdServer = await worldHubServerService.CreateFromInviteAsync(
+                                inviteRequest.ServerName,
+                                inviteRequest.FolderId,
+                                inviteRequest.OwnerEmail,
+                                inviteRequest.Participants,
+                                deviceId,
+                                localUserName,
+                                Environment.MachineName,
+                                localIp,
+                                cancellationToken);
+
+                            if (!string.IsNullOrWhiteSpace(createdServer.GoogleDriveFolderId))
+                            {
+                                _ = Task.Run(async () =>
+                                {
+                                    try
+                                    {
+                                        await googleDriveClient.CheckFolderAccessAsync(createdServer.GoogleDriveFolderId);
+                                    }
+                                    catch
+                                    {
+                                    }
+                                });
+                            }
+
+                            return true;
+                        });
+
+                        if (task is null)
+                        {
+                            return false;
+                        }
+
+                        return await task.Task.Unwrap();
+                    }
+                    catch (Exception exception)
+                    {
+                        AppLog.Error($"[INVITE] Error handling incoming invite: {exception.Message}", exception);
+                        return false;
                     }
                 });
 

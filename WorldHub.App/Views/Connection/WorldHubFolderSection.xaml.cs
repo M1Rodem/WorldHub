@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -72,6 +73,7 @@ public partial class WorldHubFolderSection : UserControl
         FolderCreatedPanel.Visibility = Visibility.Visible;
 
         FolderIdText.Text = folderId;
+        OpenInGoogleDriveButton.IsEnabled = !string.IsNullOrWhiteSpace(folderId);
 
         if (FolderAccessTimeText.Visibility != Visibility.Visible)
         {
@@ -224,6 +226,30 @@ public partial class WorldHubFolderSection : UserControl
             FolderAccessTimeText.Text =
                 $"Последняя проверка: {DateTime.Now:dd.MM.yyyy HH:mm}";
             FolderAccessTimeText.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void OpenInGoogleDriveButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        if (_currentServer is null ||
+            string.IsNullOrWhiteSpace(_currentServer.GoogleDriveFolderId))
+        {
+            return;
+        }
+
+        try
+        {
+            var url = $"https://drive.google.com/drive/folders/{_currentServer.GoogleDriveFolderId}";
+            Process.Start(new ProcessStartInfo(url)
+            {
+                UseShellExecute = true
+            });
+        }
+        catch (Exception exception)
+        {
+            AppLog.Error($"Не удалось открыть папку Google Drive: {exception.Message}", exception);
         }
     }
 }

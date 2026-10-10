@@ -1,6 +1,6 @@
 <Project>
 
-  <Import Project="Version.props"
-          Condition="Exists('Version.props')" />
+  <Import Project="$(MSBuildThisFileDirectory)Version.props"
+          Condition="Exists('$(MSBuildThisFileDirectory)Version.props')" />
 
 </Project>

@@ -54,7 +54,11 @@ public sealed class WorldHubParticipantCheckService
     {
         var gate = GetGate(worldHubServerId);
 
-        await gate.WaitAsync(cancellationToken);
+        if (!await gate.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken))
+        {
+            AppLog.Warning("[GATE] CheckAsync skipped: another check is currently in progress.");
+            return;
+        }
 
         try
         {
@@ -75,7 +79,11 @@ public sealed class WorldHubParticipantCheckService
     {
         var gate = GetGate(worldHubServerId);
 
-        await gate.WaitAsync(cancellationToken);
+        if (!await gate.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken))
+        {
+            AppLog.Log("[GATE] CheckAllAsync skipped: another check is already running.");
+            return;
+        }
 
         try
         {

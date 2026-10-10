@@ -333,6 +333,7 @@
                             CornerRadius="8">
 
                             <svgc:SvgViewbox
+                                x:Name="CloudStatusIcon"
                                 Width="18"
                                 Height="18"
                                 HorizontalAlignment="Center"
@@ -359,6 +360,7 @@
                                 Orientation="Horizontal">
 
                                 <Ellipse
+                                    x:Name="CloudStatusDot"
                                     Width="6"
                                     Height="6"
                                     Margin="0,0,6,0"
@@ -366,22 +368,34 @@
                                     Fill="{DynamicResource TextMutedBrush}"/>
 
                                 <TextBlock
-                                    Text="Подключение ещё не настроено"
+                                    x:Name="CloudStatusTextBlock"
+                                    Text="Не привязан к WorldHub-серверу"
                                     FontFamily="Inter, Segoe UI, sans-serif"
                                     FontSize="11"
                                     Foreground="{DynamicResource TextSecondaryBrush}"/>
 
                             </StackPanel>
 
+                            <TextBlock
+                                x:Name="CloudFolderHintTextBlock"
+                                Margin="0,3,0,0"
+                                FontFamily="Inter, Segoe UI, sans-serif"
+                                FontSize="10"
+                                Foreground="{DynamicResource TextMutedBrush}"
+                                Visibility="Collapsed"/>
+
                         </StackPanel>
 
                         <Button
+                            x:Name="OpenCloudFolderButton"
                             Grid.Column="2"
                             Style="{StaticResource SecondaryButton}"
                             Height="34"
                             Padding="14,0"
                             VerticalAlignment="Center"
-                            Content="Открыть в Google Drive"/>
+                            Content="Открыть в Google Drive"
+                            IsEnabled="False"
+                            Click="OpenCloudFolderButton_Click"/>
 
                     </Grid>
 

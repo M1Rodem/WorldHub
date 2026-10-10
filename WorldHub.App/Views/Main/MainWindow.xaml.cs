@@ -24,6 +24,7 @@ public partial class MainWindow
     private readonly ServerService _serverService;
     private readonly ConnectionView _connectionView;
     private readonly RadminVpnDetector _radminVpnDetector;
+    private readonly GoogleDriveStatusCache _googleDriveStatusCache;
 
     public MainWindow(
         ServerService serverService,
@@ -59,6 +60,7 @@ public partial class MainWindow
         _worldHubServerService = worldHubServerService;
         _serverService = serverService;
         _radminVpnDetector = radminVpnDetector;
+        _googleDriveStatusCache = googleDriveStatusCache;
 
         _connectionView = new ConnectionView(
             serverService,
@@ -112,7 +114,8 @@ public partial class MainWindow
                 server,
                 _serverService,
                 _worldHubServerService,
-                _processManager);
+                _processManager,
+                _googleDriveStatusCache);
 
         settingsView.BackRequested += ServerSettingsView_BackRequested;
 

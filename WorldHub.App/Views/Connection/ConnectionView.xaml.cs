@@ -25,6 +25,7 @@ public partial class ConnectionView : UserControl
 
     private CancellationTokenSource? _pageCts;
     private bool _isLoading;
+    private bool _isAutoChecking;
     private Guid? _selectedServerId;
     private WorldHubServer? _currentServer;
 
@@ -82,14 +83,25 @@ public partial class ConnectionView : UserControl
             _checkService,
             worldHubServerService,
             localDeviceId,
-            () => appSettingsService.GetUserName());
+            () => appSettingsService.GetUserName(),
+            networkService);
 
         ParticipantsSection.ParticipantCountChanged += (_, count) => UpdateParticipantCountUi(count);
 
         ParticipantsSection.ParticipantCheckCompleted += async (_, _) =>
         {
             await FolderSection.RefreshFolderAccessAsync();
-            await FolderSection.ShareWithCurrentParticipantsAsync();
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await FolderSection.ShareWithCurrentParticipantsAsync();
+                }
+                catch (Exception ex)
+                {
+                    AppLog.Warning($"Auto-share background error: {ex.Message}", ex);
+                }
+            });
         };
 
         _appSettingsService.UserNameChanged += async (_, newUserName) =>
@@ -199,9 +211,19 @@ public partial class ConnectionView : UserControl
         object? sender,
         EventArgs e)
     {
+        if (_isAutoChecking)
+        {
+            return;
+        }
+
         Dispatcher.BeginInvoke(
             new Action(async () =>
             {
+                if (_isAutoChecking)
+                {
+                    return;
+                }
+
                 try
                 {
                     if (_selectedServerId is null ||
@@ -211,12 +233,20 @@ public partial class ConnectionView : UserControl
                         return;
                     }
 
-                    AppLog.Separator(
-                        $"Drive status updated, re-checking '{_currentServer?.Name ?? "server"}'");
+                    _isAutoChecking = true;
+                    try
+                    {
+                        AppLog.Separator(
+                            $"Drive status updated, re-checking '{_currentServer?.Name ?? "server"}'");
 
-                    await ParticipantsSection.CheckAllParticipantsAsync(
-                        _selectedServerId.Value,
-                        _pageCts.Token);
+                        await ParticipantsSection.CheckAllParticipantsAsync(
+                            _selectedServerId.Value,
+                            _pageCts.Token);
+                    }
+                    finally
+                    {
+                        _isAutoChecking = false;
+                    }
                 }
                 catch (OperationCanceledException)
                 {
@@ -235,17 +265,26 @@ public partial class ConnectionView : UserControl
         EventArgs e)
     {
         if (_selectedServerId is null ||
-            _pageCts is null)
+            _pageCts is null ||
+            _isAutoChecking)
         {
             return;
         }
 
-        AppLog.Separator(
-            $"Auto-check of '{_currentServer?.Name ?? "server"}'");
+        _isAutoChecking = true;
+        try
+        {
+            AppLog.Separator(
+                $"Auto-check of '{_currentServer?.Name ?? "server"}'");
 
-        await ParticipantsSection.CheckAllParticipantsAsync(
-            _selectedServerId.Value,
-            _pageCts.Token);
+            await ParticipantsSection.CheckAllParticipantsAsync(
+                _selectedServerId.Value,
+                _pageCts.Token);
+        }
+        finally
+        {
+            _isAutoChecking = false;
+        }
     }
 
     private async Task LoadWorldHubServersAsync(Guid? selectedId = null)

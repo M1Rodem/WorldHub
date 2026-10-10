@@ -5,6 +5,7 @@ using WorldHub.App.Services.Network;
 using WorldHub.App.Views.Dialogs;
 using WorldHub.Core.Entities;
 using WorldHub.Logging;
+using WorldHub.Network.Protocol;
 using WorldHub.Sync.Services;
 
 namespace WorldHub.App.Views.Connection;
@@ -13,6 +14,7 @@ public partial class WorldHubParticipantsSection : UserControl
 {
     private WorldHubParticipantCheckService? _checkService;
     private WorldHubServerService? _worldHubServerService;
+    private WorldHubNetworkService? _networkService;
     private string _localDeviceId = string.Empty;
     private Func<string>? _userNameProvider;
     private Guid? _selectedServerId;
@@ -31,7 +33,8 @@ public partial class WorldHubParticipantsSection : UserControl
         WorldHubParticipantCheckService checkService,
         WorldHubServerService worldHubServerService,
         string localDeviceId,
-        Func<string>? userNameProvider = null)
+        Func<string>? userNameProvider = null,
+        WorldHubNetworkService? networkService = null)
     {
         ArgumentNullException.ThrowIfNull(checkService);
         ArgumentNullException.ThrowIfNull(worldHubServerService);
@@ -41,6 +44,7 @@ public partial class WorldHubParticipantsSection : UserControl
         _worldHubServerService = worldHubServerService;
         _localDeviceId = localDeviceId;
         _userNameProvider = userNameProvider;
+        _networkService = networkService;
     }
 
     public void SetServer(Guid? serverId, string? serverName = null)
@@ -150,7 +154,7 @@ public partial class WorldHubParticipantsSection : UserControl
 
     public async Task AddParticipantAsync(Window owner)
     {
-        if (_selectedServerId is null || _checkService is null)
+        if (_selectedServerId is null || _checkService is null || _worldHubServerService is null)
         {
             return;
         }
@@ -167,45 +171,138 @@ public partial class WorldHubParticipantsSection : UserControl
         }
 
         var serverId = _selectedServerId.Value;
-
-        AppLog.Separator($"Adding participant {window.IpAddress}");
-
-        try
+        var server = await _worldHubServerService.GetByIdAsync(serverId);
+        if (server is null)
         {
-            var participant = await _checkService.AddParticipantAsync(
-                serverId,
-                window.IpAddress!,
-                CancellationToken.None);
-
-            if (_selectedServerId == serverId)
-            {
-                await ReloadParticipantsAsync(serverId);
-            }
-
-            await _checkService.CheckAsync(
-                serverId,
-                participant.Id,
-                CancellationToken.None);
-
-            if (_selectedServerId == serverId)
-            {
-                await ReloadParticipantsAsync(serverId);
-            }
-
-            ParticipantCheckCompleted?.Invoke(this, EventArgs.Empty);
+            return;
         }
-        catch (OperationCanceledException)
+
+        var targetIp = window.IpAddress.Trim();
+
+        // 1. Проверяем, нет ли уже участника с таким IP
+        if (server.Participants.Any(p => string.Equals(p.IpAddress, targetIp, StringComparison.OrdinalIgnoreCase)))
         {
-        }
-        catch (Exception exception)
-        {
-            MessageBox.Show(
+            DialogWindow.ShowWarning(
                 owner,
-                exception.Message,
-                "Не удалось добавить участника",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+                "Уже существует",
+                $"Участник с IP {targetIp} уже добавлен в этот сервер.");
+            return;
         }
+
+        if (_networkService is null)
+        {
+            DialogWindow.ShowError(
+                owner,
+                "Ошибка сети",
+                "Сетевая служба недоступна.");
+            return;
+        }
+
+        var inviteRequest = new InviteRequest(
+            serverName: server.Name,
+            folderId: server.GoogleDriveFolderId,
+            ownerEmail: server.GoogleDriveOwnerEmail,
+            ownerUserName: _userNameProvider?.Invoke() ?? Environment.UserName,
+            ownerDeviceId: _localDeviceId,
+            participants: server.Participants
+                .Select(p => new InviteParticipant(
+                    p.DeviceId ?? "",
+                    p.IpAddress,
+                    p.UserName ?? "",
+                    p.PcName ?? ""))
+                .ToList());
+
+        AppLog.Separator($"Sending invite to {targetIp} for '{server.Name}'");
+
+        DialogWindow.ShowInformation(
+            owner,
+            "Приглашение отправлено",
+            $"Приглашение отправлено на {targetIp}.\nОжидаем ответ друга...");
+
+        var serverName = server.Name;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var accepted = await _networkService.SendInviteAsync(
+                    targetIp,
+                    inviteRequest,
+                    CancellationToken.None);
+
+                await Dispatcher.InvokeAsync(async () =>
+                {
+                    if (accepted)
+                    {
+                        try
+                        {
+                            var participant = await _checkService.AddParticipantAsync(
+                                serverId,
+                                targetIp,
+                                CancellationToken.None);
+
+                            await _checkService.CheckAsync(
+                                serverId,
+                                participant.Id,
+                                CancellationToken.None);
+
+                            if (_selectedServerId == serverId)
+                            {
+                                await ReloadParticipantsAsync(serverId);
+                            }
+
+                            ParticipantCheckCompleted?.Invoke(this, EventArgs.Empty);
+
+                            var updatedServer = await _worldHubServerService.GetByIdAsync(serverId);
+                            var friendName = updatedServer?.Participants
+                                .FirstOrDefault(p => p.Id == participant.Id)?.UserName;
+
+                            var friendDisplay = !string.IsNullOrWhiteSpace(friendName)
+                                ? friendName
+                                : targetIp;
+
+                            DialogWindow.ShowInformation(
+                                owner,
+                                "Приглашение принято",
+                                $"{friendDisplay} присоединился к серверу «{serverName}».");
+                        }
+                        catch (Exception exception)
+                        {
+                            AppLog.Error($"Failed to finalize accepted participant: {exception.Message}", exception);
+                        }
+                    }
+                    else
+                    {
+                        DialogWindow.ShowInformation(
+                            owner,
+                            "Приглашение отклонено",
+                            $"Друг ({targetIp}) отклонил приглашение.");
+                    }
+                });
+            }
+            catch (TimeoutException)
+            {
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    DialogWindow.ShowWarning(
+                        owner,
+                        "Друг недоступен",
+                        $"Друг ({targetIp}) не ответил на приглашение за 60 секунд. Попробуйте позже.");
+                });
+            }
+            catch (Exception exception)
+            {
+                AppLog.Warning($"Invite to {targetIp} failed: {exception.Message}");
+
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    DialogWindow.ShowWarning(
+                        owner,
+                        "Друг недоступен",
+                        $"Не удалось связаться с {targetIp}.\nУбедитесь, что Radmin VPN включён и WorldHub запущен.");
+                });
+            }
+        });
     }
 
     private async void CheckParticipantButton_Click(

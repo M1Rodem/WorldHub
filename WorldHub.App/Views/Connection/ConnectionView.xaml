@@ -220,7 +220,7 @@
                                         Stretch="Uniform"
                                         Source="/Assets/Icons/plus.svg"/>
                                     <TextBlock
-                                        Text="Добавить участника"
+                                        Text="Пригласить друга"
                                         VerticalAlignment="Center"
                                         FontFamily="Inter, Segoe UI, sans-serif"
                                         FontSize="12"

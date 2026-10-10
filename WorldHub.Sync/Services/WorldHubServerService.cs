@@ -69,6 +69,80 @@ public sealed class WorldHubServerService
         return worldHubServer;
     }
 
+    public async Task<WorldHubServer> CreateFromInviteAsync(
+        string serverName,
+        string? folderId,
+        string? ownerEmail,
+        List<WorldHub.Network.Protocol.InviteParticipant> participants,
+        string localDeviceId,
+        string localUserName,
+        string localPcName,
+        string localIpAddress,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(serverName))
+        {
+            throw new ArgumentException(
+                "Название WorldHub-server не может быть пустым.",
+                nameof(serverName));
+        }
+
+        var now = DateTime.UtcNow;
+
+        var server = new WorldHubServer
+        {
+            Id = Guid.NewGuid(),
+            Name = serverName.Trim(),
+            GoogleDriveFolderId = folderId,
+            GoogleDriveOwnerEmail = ownerEmail,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+        if (participants is not null)
+        {
+            foreach (var p in participants)
+            {
+                if (string.Equals(p.DeviceId, localDeviceId, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                server.Participants.Add(new WorldHubParticipant
+                {
+                    Id = Guid.NewGuid(),
+                    DeviceId = p.DeviceId,
+                    IpAddress = p.IpAddress,
+                    UserName = p.UserName,
+                    PcName = p.PcName,
+                    LastSeenAtUtc = DateTimeOffset.UtcNow
+                });
+            }
+        }
+
+        server.Participants.Add(new WorldHubParticipant
+        {
+            Id = Guid.NewGuid(),
+            DeviceId = localDeviceId,
+            IpAddress = localIpAddress,
+            UserName = localUserName,
+            PcName = localPcName,
+            IsPingAvailable = true,
+            IsWorldHubResponding = true,
+            LastCheckAtUtc = DateTimeOffset.UtcNow,
+            LastSeenAtUtc = DateTimeOffset.UtcNow
+        });
+
+        await _repository.AddAsync(
+            server,
+            cancellationToken);
+
+        AppLog.Success(
+            $"[SYNC] Created WorldHub server '{server.Name}' ({server.Id}) from invite.");
+
+        return server;
+    }
+
     public async Task UpdateAsync(
         WorldHubServer worldHubServer,
         CancellationToken cancellationToken = default)

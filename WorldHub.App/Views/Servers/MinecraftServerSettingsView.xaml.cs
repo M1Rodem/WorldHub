@@ -1,8 +1,12 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
+using WorldHub.App.Services.Network;
 using WorldHub.Core.Entities;
 using WorldHub.Core.Enums;
 using WorldHub.Infrastructure.Minecraft;
+using WorldHub.Logging;
 using WorldHub.Sync.Services;
 
 namespace WorldHub.App.Views.Servers;
@@ -13,8 +17,10 @@ public partial class MinecraftServerSettingsView : UserControl
     private readonly ServerService _serverService;
     private readonly WorldHubServerService _worldHubServerService;
     private readonly DedicatedServerProcessManager _processManager;
+    private readonly GoogleDriveStatusCache? _googleDriveStatusCache;
 
     private bool _loadingWorldHubServers;
+    private string? _currentFolderId;
 
     public event EventHandler? BackRequested;
 
@@ -22,7 +28,8 @@ public partial class MinecraftServerSettingsView : UserControl
         Server server,
         ServerService serverService,
         WorldHubServerService worldHubServerService,
-        DedicatedServerProcessManager processManager)
+        DedicatedServerProcessManager processManager,
+        GoogleDriveStatusCache? googleDriveStatusCache = null)
     {
         ArgumentNullException.ThrowIfNull(server);
         ArgumentNullException.ThrowIfNull(serverService);
@@ -33,6 +40,7 @@ public partial class MinecraftServerSettingsView : UserControl
         _serverService = serverService;
         _worldHubServerService = worldHubServerService;
         _processManager = processManager;
+        _googleDriveStatusCache = googleDriveStatusCache;
 
         InitializeComponent();
 
@@ -53,6 +61,7 @@ public partial class MinecraftServerSettingsView : UserControl
         RefreshStatus();
 
         _ = LoadWorldHubServersAsync();
+        _ = RefreshCloudBlockAsync();
     }
 
     private async Task LoadWorldHubServersAsync()
@@ -100,10 +109,7 @@ public partial class MinecraftServerSettingsView : UserControl
             return;
         }
 
-        if (WorldHubServerComboBox.SelectedValue is not Guid worldHubServerId)
-        {
-            return;
-        }
+        Guid? worldHubServerId = WorldHubServerComboBox.SelectedValue as Guid?;
 
         if (_server.WorldHubServerId == worldHubServerId)
         {
@@ -116,6 +122,7 @@ public partial class MinecraftServerSettingsView : UserControl
                 worldHubServerId;
 
             await _serverService.UpdateAsync(_server);
+            await RefreshCloudBlockAsync();
         }
         catch (Exception exception)
         {
@@ -127,6 +134,83 @@ public partial class MinecraftServerSettingsView : UserControl
                 MessageBoxImage.Error);
 
             await LoadWorldHubServersAsync();
+        }
+    }
+
+    private async Task RefreshCloudBlockAsync()
+    {
+        var isGoogleConnected = string.Equals(
+            _googleDriveStatusCache?.GetStatusString(),
+            "DriveAvailable",
+            StringComparison.OrdinalIgnoreCase);
+
+        CloudStatusIcon.Source = new Uri(
+            isGoogleConnected
+                ? "/Assets/Icons/google-on.svg"
+                : "/Assets/Icons/google-off.svg",
+            UriKind.Relative);
+
+        CloudStatusDot.Fill = isGoogleConnected
+            ? new SolidColorBrush(Color.FromRgb(104, 211, 145))
+            : (Brush)FindResource("TextMutedBrush");
+
+        if (_server.WorldHubServerId is null)
+        {
+            CloudStatusTextBlock.Text = "Не привязан к WorldHub-серверу";
+            CloudFolderHintTextBlock.Visibility = Visibility.Collapsed;
+            OpenCloudFolderButton.IsEnabled = false;
+            _currentFolderId = null;
+            return;
+        }
+
+        var worldHubServer = await _worldHubServerService.GetByIdAsync(_server.WorldHubServerId.Value);
+
+        if (worldHubServer is null)
+        {
+            CloudStatusTextBlock.Text = "Не привязан к WorldHub-серверу";
+            CloudFolderHintTextBlock.Visibility = Visibility.Collapsed;
+            OpenCloudFolderButton.IsEnabled = false;
+            _currentFolderId = null;
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(worldHubServer.GoogleDriveFolderId))
+        {
+            CloudStatusTextBlock.Text = "Общая папка не создана";
+            CloudFolderHintTextBlock.Visibility = Visibility.Collapsed;
+            OpenCloudFolderButton.IsEnabled = false;
+            _currentFolderId = null;
+        }
+        else
+        {
+            CloudStatusTextBlock.Text = $"Общая папка WorldHub-сервера {worldHubServer.Name}";
+            CloudFolderHintTextBlock.Text = $"Откроется общая папка WorldHub-сервера {worldHubServer.Name}";
+            CloudFolderHintTextBlock.Visibility = Visibility.Visible;
+            OpenCloudFolderButton.IsEnabled = true;
+            _currentFolderId = worldHubServer.GoogleDriveFolderId;
+        }
+    }
+
+    private void OpenCloudFolderButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_currentFolderId))
+        {
+            return;
+        }
+
+        try
+        {
+            var url = $"https://drive.google.com/drive/folders/{_currentFolderId}";
+            Process.Start(new ProcessStartInfo(url)
+            {
+                UseShellExecute = true
+            });
+        }
+        catch (Exception exception)
+        {
+            AppLog.Error($"Не удалось открыть папку Google Drive: {exception.Message}", exception);
         }
     }
 

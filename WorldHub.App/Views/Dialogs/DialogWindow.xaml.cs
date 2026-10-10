@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Media;
 
@@ -43,7 +43,7 @@ public partial class DialogWindow : Window
     }
 
     public static bool ShowConfirmation(
-        Window owner,
+        Window? owner,
         string title,
         string message)
     {
@@ -126,7 +126,7 @@ public partial class DialogWindow : Window
     }
 
     public static void ShowInformation(
-        Window owner,
+        Window? owner,
         string title,
         string message)
     {
@@ -141,7 +141,7 @@ public partial class DialogWindow : Window
     }
 
     public static void ShowError(
-        Window owner,
+        Window? owner,
         string title,
         string message)
     {
@@ -171,7 +171,7 @@ public partial class DialogWindow : Window
     }
 
     public static void ShowWarning(
-        Window owner,
+        Window? owner,
         string title,
         string message)
     {

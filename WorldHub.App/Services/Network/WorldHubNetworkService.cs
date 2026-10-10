@@ -25,6 +25,7 @@ public sealed class WorldHubNetworkService : IDisposable
     private readonly Func<CancellationToken, Task<string?>> _googleEmailProvider;
     private readonly Func<string, CancellationToken, Task<ServerInfo>> _serverInfoProvider;
     private readonly Func<PeerInfo, string, CancellationToken, Task>? _remoteProfileReceivedHandler;
+    private readonly Func<InviteRequest, CancellationToken, Task<bool>>? _inviteHandler;
     private readonly CancellationTokenSource _disposeCts = new();
 
     private bool _disposed;
@@ -39,6 +40,7 @@ public sealed class WorldHubNetworkService : IDisposable
         Func<CancellationToken, Task<string?>> googleEmailProvider,
         Func<string, CancellationToken, Task<ServerInfo>> serverInfoProvider,
         Func<PeerInfo, string, CancellationToken, Task>? remoteProfileReceivedHandler = null,
+        Func<InviteRequest, CancellationToken, Task<bool>>? inviteHandler = null,
         int port = DefaultPort)
     {
         ArgumentNullException.ThrowIfNull(networkService);
@@ -64,6 +66,7 @@ public sealed class WorldHubNetworkService : IDisposable
         _googleEmailProvider = googleEmailProvider;
         _serverInfoProvider = serverInfoProvider;
         _remoteProfileReceivedHandler = remoteProfileReceivedHandler;
+        _inviteHandler = inviteHandler;
         Port = port;
 
         _networkHost = new NetworkHost(
@@ -342,6 +345,118 @@ public sealed class WorldHubNetworkService : IDisposable
         }
     }
 
+    public async Task<bool> SendInviteAsync(
+        string host,
+        InviteRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(host);
+        ArgumentNullException.ThrowIfNull(request);
+
+        using var linkedCts =
+            CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken,
+                _disposeCts.Token);
+
+        using var timeoutCts =
+            CancellationTokenSource.CreateLinkedTokenSource(
+                linkedCts.Token);
+
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(60));
+
+        var token = timeoutCts.Token;
+
+        NetworkConnection? connection = null;
+
+        try
+        {
+            connection = await _networkProvider.ConnectAsync(
+                host,
+                Port,
+                token);
+        }
+        catch (OperationCanceledException)
+            when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            AppLog.Warning($"[INVITE] Connection timeout to {host}.");
+            throw new TimeoutException($"Таймаут подключения к {host}.");
+        }
+        catch (Exception exception)
+        {
+            AppLog.Warning($"[INVITE] Connection failed to {host}: {exception.Message}");
+            throw;
+        }
+
+        await using (connection)
+        {
+            try
+            {
+                await NetworkHandshake.SendHelloAsync(
+                    connection,
+                    token);
+
+                await NetworkHandshake.WaitForServerHelloAsync(
+                    connection,
+                    token);
+
+                AppLog.Log(
+                    $"[INVITE] → WORLDHUB_INVITE to {host} for server '{request.ServerName}'");
+
+                await WorldTransferProtocol.SendMessageAsync(
+                    connection,
+                    InviteProtocol.InviteRequestCommand,
+                    token);
+
+                await WorldTransferProtocol.SendJsonAsync(
+                    connection,
+                    request,
+                    token);
+
+                var responseCommand = await WorldTransferProtocol.ReceiveMessageAsync(
+                    connection,
+                    token);
+
+                if (responseCommand != InviteProtocol.InviteResponseCommand)
+                {
+                    AppLog.Warning(
+                        $"[INVITE] Unexpected response '{responseCommand}' from {host}.");
+                    return false;
+                }
+
+                var response = await WorldTransferProtocol.ReceiveJsonAsync<InviteResponse>(
+                    connection,
+                    token);
+
+                AppLog.Log(
+                    $"[INVITE] ← InviteResponse from {host}: Accepted={response.Accepted}");
+
+                return response.Accepted;
+            }
+            catch (OperationCanceledException)
+                when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (OperationCanceledException)
+            {
+                AppLog.Warning(
+                    $"[INVITE] Waiting for response from {host} timed out.");
+                throw new TimeoutException("Друг не ответил на приглашение за 60 секунд.");
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error(
+                    $"[INVITE] SendInvite failed to {host}: {exception.Message}",
+                    exception);
+                throw;
+            }
+        }
+    }
+
     private async Task HandleConnectionAsync(
         NetworkConnection connection,
         CancellationToken cancellationToken)
@@ -349,6 +464,55 @@ public sealed class WorldHubNetworkService : IDisposable
         var command = await WorldTransferProtocol.ReceiveMessageAsync(
             connection,
             cancellationToken);
+
+        // Ветка WORLDHUB_INVITE — без PING/PONG.
+        if (command == InviteProtocol.InviteRequestCommand)
+        {
+            var remoteEndPoint = connection.Client.Client.RemoteEndPoint?.ToString() ?? "?";
+            AppLog.Log($"[NET] ← WORLDHUB_INVITE from {remoteEndPoint}");
+
+            var inviteRequest = await WorldTransferProtocol.ReceiveJsonAsync<InviteRequest>(
+                connection,
+                cancellationToken);
+
+            AppLog.Log(
+                $"[INVITE] Received invite to server '{inviteRequest.ServerName}' from {inviteRequest.OwnerUserName} ({remoteEndPoint})");
+
+            bool accepted = false;
+            if (_inviteHandler is not null)
+            {
+                try
+                {
+                    accepted = await _inviteHandler(
+                        inviteRequest,
+                        cancellationToken);
+                }
+                catch (Exception exception)
+                {
+                    AppLog.Error(
+                        $"[INVITE] Handler error: {exception.Message}",
+                        exception);
+                    accepted = false;
+                }
+            }
+
+            var inviteResponse = new InviteResponse(accepted);
+
+            await WorldTransferProtocol.SendMessageAsync(
+                connection,
+                InviteProtocol.InviteResponseCommand,
+                cancellationToken);
+
+            await WorldTransferProtocol.SendJsonAsync(
+                connection,
+                inviteResponse,
+                cancellationToken);
+
+            AppLog.Log(
+                $"[INVITE] → WORLDHUB_INVITE_RESPONSE to {remoteEndPoint}: Accepted={accepted}");
+
+            return;
+        }
 
         // Ветка WORLDHUB_SERVER_INFO — без PING/PONG.
         if (command == ServerInfoProtocol.ServerInfoRequest)
