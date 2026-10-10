@@ -1,5 +1,6 @@
 using WorldHub.Core.Entities;
 using WorldHub.Core.Interfaces;
+using WorldHub.Infrastructure.Google;
 using WorldHub.Logging;
 
 namespace WorldHub.Sync.Services;
@@ -175,32 +176,82 @@ public sealed class WorldHubServerService
     }
 
     /// <summary>
-    /// Удаляет WorldHub-сервер и отвязывает от него Minecraft-серверы.
-    /// Папка Google Drive НЕ удаляется — её удаление остаётся на пользователе.
+    /// Удаляет WorldHub-сервер, отвязывает от него Minecraft-серверы и удаляет общую папку в Google Drive (если вызвано хостом).
     /// </summary>
-    public async Task DeleteWithCleanupAsync(
+    public async Task<FolderDeleteResult?> DeleteWithCleanupAsync(
         Guid worldHubServerId,
         ServerService serverService,
+        GoogleDriveClient? googleDriveClient = null,
+        bool deleteCloudFolder = false,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(serverService);
 
-        // 1. Отвязать Minecraft-серверы.
-        var servers = await serverService.GetAllAsync(cancellationToken);
+        FolderDeleteResult? folderDeleteResult = null;
 
-        foreach (var server in servers)
+        // 1. Получить сервер из репозитория
+        var server = await _repository.GetByIdAsync(worldHubServerId, cancellationToken);
+
+        // 2. Если требуется удалить папку в Google Drive (только хост)
+        if (deleteCloudFolder && googleDriveClient is not null && server is not null)
         {
-            if (server.WorldHubServerId == worldHubServerId)
+            if (!string.IsNullOrWhiteSpace(server.GoogleDriveFolderId))
             {
-                server.WorldHubServerId = null;
-                await serverService.UpdateAsync(server, cancellationToken);
+                try
+                {
+                    AppLog.Log($"[SYNC] Попытка удаления папки Google Drive ({server.GoogleDriveFolderId}) для сервера '{server.Name}'...");
+                    folderDeleteResult = await googleDriveClient.DeleteFolderAsync(
+                        server.GoogleDriveFolderId,
+                        cancellationToken);
+
+                    if (folderDeleteResult.Success)
+                    {
+                        if (folderDeleteResult.AlreadyDeleted)
+                        {
+                            AppLog.Log($"[SYNC] Папка Google Drive {server.GoogleDriveFolderId} уже была удалена.");
+                        }
+                        else
+                        {
+                            AppLog.Success($"[SYNC] Папка Google Drive {server.GoogleDriveFolderId} успешно удалена.");
+                        }
+                    }
+                    else
+                    {
+                        AppLog.Warning($"[SYNC] Не удалось удалить папку Google Drive: {folderDeleteResult.Message}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AppLog.Error($"[SYNC] Исключение при удалении папки Google Drive: {ex.Message}", ex);
+                    folderDeleteResult = new FolderDeleteResult(false, false, ex.Message);
+                }
+            }
+            else
+            {
+                AppLog.Log($"[SYNC] Сервер '{server.Name}' не имеет связанной папки Google Drive (GoogleDriveFolderId пуст).");
             }
         }
 
-        // 2. Удалить WorldHub-сервер.
+        // 3. Отвязать Minecraft-серверы.
+        var servers = await serverService.GetAllAsync(cancellationToken);
+
+        foreach (var s in servers)
+        {
+            if (s.WorldHubServerId == worldHubServerId)
+            {
+                s.WorldHubServerId = null;
+                await serverService.UpdateAsync(s, cancellationToken);
+            }
+        }
+
+        // 4. Удалить WorldHub-сервер.
         await _repository.DeleteAsync(
             worldHubServerId,
             cancellationToken);
+
+        AppLog.Success($"[SYNC] WorldHub-сервер {worldHubServerId} локально удален.");
+
+        return folderDeleteResult;
     }
 
 

@@ -41,6 +41,11 @@ public sealed record FolderShareResult(
     string? PermissionId,
     string? Message);
 
+public sealed record FolderDeleteResult(
+    bool Success,
+    bool AlreadyDeleted,
+    string? Message);
+
 public sealed class GoogleDriveClient
 {
     private const string ApplicationName = "WorldHub";
@@ -328,11 +333,10 @@ public sealed class GoogleDriveClient
     }
 
     /// <summary>
-    /// Проверяет доступ текущего Google-аккаунта к указанной папке.
-    /// Не различает «папки нет» и «папка чужая» — Google отдаёт 404
-    /// в обоих случаях, чтобы не подтверждать существование чужих файлов.
+    /// Удаляет папку на Google Drive по её ID.
+    /// Идемпотентен: 404 трактуется как успех (папка уже удалена).
     /// </summary>
-    public async Task<FolderAccessStatus> CheckFolderAccessAsync(
+    public async Task<FolderDeleteResult> DeleteFolderAsync(
         string folderId,
         CancellationToken cancellationToken = default)
     {
@@ -359,26 +363,16 @@ public sealed class GoogleDriveClient
                         ApplicationName = ApplicationName
                     });
 
-            var request = service.Files.Get(folderId);
-            request.Fields = "id,name,mimeType";
-            request.SupportsAllDrives = true;
+            var deleteRequest = service.Files.Delete(folderId);
+            deleteRequest.SupportsAllDrives = true;
 
-            var folder = await request.ExecuteAsync(token);
+            await deleteRequest.ExecuteAsync(token);
 
-            if (!string.Equals(
-                    folder.MimeType,
-                    "application/vnd.google-apps.folder",
-                    StringComparison.Ordinal))
-            {
-                AppLog.Warning(
-                    $"[DRIVE] {folderId} is not a folder: {folder.MimeType}");
-                return FolderAccessStatus.NoAccess;
-            }
-
-            AppLog.Success(
-                $"[DRIVE] Folder access OK: {folder.Name} ({folderId})");
-
-            return FolderAccessStatus.Accessible;
+            AppLog.Success($"[DRIVE] Folder {folderId} deleted successfully.");
+            return new FolderDeleteResult(
+                Success: true,
+                AlreadyDeleted: false,
+                Message: "Папка Google Drive успешно удалена.");
         }
         catch (OperationCanceledException)
             when (cancellationToken.IsCancellationRequested)
@@ -387,23 +381,140 @@ public sealed class GoogleDriveClient
         }
         catch (OperationCanceledException)
         {
-            return FolderAccessStatus.Timeout;
+            AppLog.Warning($"[DRIVE] Delete folder {folderId} timed out.");
+            return new FolderDeleteResult(
+                Success: false,
+                AlreadyDeleted: false,
+                Message: "Превышено время ожидания удаления папки.");
         }
-        catch (global::Google.Apis.Auth.OAuth2.Responses.TokenResponseException)
+        catch (GoogleApiException exception) when ((int)exception.HttpStatusCode == 404)
         {
-            return FolderAccessStatus.NotAuthorized;
+            AppLog.Log($"[DRIVE] Folder {folderId} already deleted (404).");
+            return new FolderDeleteResult(
+                Success: true,
+                AlreadyDeleted: true,
+                Message: "Папка уже удалена.");
+        }
+        catch (GoogleApiException exception) when ((int)exception.HttpStatusCode == 403)
+        {
+            AppLog.Warning($"[DRIVE] Delete folder {folderId} forbidden (403): {exception.Message}");
+            return new FolderDeleteResult(
+                Success: false,
+                AlreadyDeleted: false,
+                Message: "Нет прав на удаление папки (вы не являетесь владельцем).");
         }
         catch (GoogleApiException exception)
-            when ((int)exception.HttpStatusCode == 401)
         {
-            return FolderAccessStatus.NotAuthorized;
+            AppLog.Error($"[DRIVE] Delete folder {folderId} failed: {exception.HttpStatusCode} {exception.Message}", exception);
+            return new FolderDeleteResult(
+                Success: false,
+                AlreadyDeleted: false,
+                Message: $"Ошибка Google Drive API ({exception.HttpStatusCode}): {exception.Message}");
         }
-        catch (GoogleApiException exception)
-            when ((int)exception.HttpStatusCode == 404)
+        catch (Exception exception)
         {
-            AppLog.Error(
-                $"[DRIVE] Folder {folderId} not found (404).",
-                exception);
+            AppLog.Error($"[DRIVE] Delete folder {folderId} failed: {exception.Message}", exception);
+            return new FolderDeleteResult(
+                Success: false,
+                AlreadyDeleted: false,
+                Message: exception.Message);
+        }
+    }
+
+    /// <summary>
+    /// Проверяет доступ текущего Google-аккаунта к указанной папке.
+    /// Не различает «папки нет» и «папка чужая» — Google отдаёт 404
+    /// в обоих случаях, чтобы не подтверждать существование чужих файлов.
+    /// </summary>
+    public async Task<FolderAccessStatus> CheckFolderAccessAsync(
+        string folderId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(folderId);
+
+        using var timeoutCts =
+            CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken);
+
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(30));
+
+        var token = timeoutCts.Token;
+
+        try
+        {
+            var credential =
+                await _authService.AuthorizeAsync(token);
+
+            var service =
+                new DriveService(
+                    new BaseClientService.Initializer
+                    {
+                        HttpClientInitializer = credential,
+                        ApplicationName = ApplicationName
+                    });
+
+            string? accountEmail = null;
+            try
+            {
+                accountEmail = await GetAccountEmailAsync(token);
+            }
+            catch
+            {
+            }
+
+            const int maxAttempts = 3;
+            var retryDelays = new[] { TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(3) };
+
+            for (var attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                try
+                {
+                    var request = service.Files.Get(folderId);
+                    request.Fields = "id,name,mimeType";
+                    request.SupportsAllDrives = true;
+
+                    var folder = await request.ExecuteAsync(token);
+
+                    if (!string.Equals(
+                            folder.MimeType,
+                            "application/vnd.google-apps.folder",
+                            StringComparison.Ordinal))
+                    {
+                        AppLog.Warning(
+                            $"[DRIVE] {folderId} is not a folder: {folder.MimeType}");
+                        return FolderAccessStatus.NoAccess;
+                    }
+
+                    if (attempt > 1)
+                    {
+                        AppLog.Success(
+                            $"[DRIVE] Folder access OK on attempt {attempt}: {folder.Name} ({folderId}) for {accountEmail ?? "user"}");
+                    }
+                    else
+                    {
+                        AppLog.Success(
+                            $"[DRIVE] Folder access OK: {folder.Name} ({folderId}) for {accountEmail ?? "user"}");
+                    }
+
+                    return FolderAccessStatus.Accessible;
+                }
+                catch (GoogleApiException exception) when ((int)exception.HttpStatusCode == 404)
+                {
+                    if (attempt < maxAttempts && !token.IsCancellationRequested)
+                    {
+                        AppLog.Warning(
+                            $"[DRIVE] Folder {folderId} returned 404 on attempt {attempt}/{maxAttempts} for {accountEmail ?? "user"} (permissions may still be propagating). Retrying in {retryDelays[attempt - 1].TotalSeconds}s...");
+                        await Task.Delay(retryDelays[attempt - 1], token);
+                        continue;
+                    }
+
+                    AppLog.Error(
+                        $"[DRIVE] Folder {folderId} not found (404) after {maxAttempts} attempts for {accountEmail ?? "user"}.",
+                        exception);
+                    return FolderAccessStatus.FolderNotFound;
+                }
+            }
+
             return FolderAccessStatus.FolderNotFound;
         }
         catch (GoogleApiException exception)

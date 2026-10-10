@@ -141,15 +141,32 @@
                             FontWeight="Medium"
                             Foreground="{DynamicResource TextMutedBrush}"/>
 
-                        <ComboBox
-                            x:Name="WorldHubServerComboBox"
-                            Height="38"
-                            Margin="0,6,0,0"
-                            Padding="12,0"
-                            VerticalContentAlignment="Center"
-                            DisplayMemberPath="Name"
-                            SelectedValuePath="Id"
-                            SelectionChanged="WorldHubServerComboBox_SelectionChanged"/>
+                        <Grid Margin="0,6,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <ComboBox
+                                x:Name="WorldHubServerComboBox"
+                                Grid.Column="0"
+                                Height="38"
+                                Margin="0,0,10,0"
+                                Padding="12,0"
+                                VerticalContentAlignment="Center"
+                                DisplayMemberPath="Name"
+                                SelectedValuePath="Id"
+                                SelectionChanged="WorldHubServerComboBox_SelectionChanged"/>
+
+                            <Button
+                                x:Name="SaveWorldHubServerButton"
+                                Grid.Column="1"
+                                Content="Сохранить"
+                                Style="{StaticResource PrimaryButton}"
+                                Height="38"
+                                Padding="20,0"
+                                Click="SaveWorldHubServerButton_Click"/>
+                        </Grid>
 
                         <!-- PATH -->
                         <TextBlock

@@ -235,6 +235,23 @@ public partial class App : Application
                         var task = Current?.Dispatcher.InvokeAsync(async () =>
                         {
                             var owner = Current?.MainWindow;
+
+                            var isGoogleConnected = googleAuthService.HasSavedToken() &&
+                                string.Equals(googleDriveStatusCache.GetStatusString(), "DriveAvailable", StringComparison.OrdinalIgnoreCase);
+
+                            if (!isGoogleConnected)
+                            {
+                                DialogWindow.ShowWarning(
+                                    owner,
+                                    "Google Drive не подключён",
+                                    $"Вас приглашает {inviteRequest.OwnerUserName} в WorldHub-сервер «{inviteRequest.ServerName}».\n\n" +
+                                    "Но у вас не подключён Google Drive!\n" +
+                                    "Подключите Google-аккаунт в «Настройках», чтобы принимать приглашения и участвовать в сервере.");
+
+                                AppLog.Warning($"[INVITE] Rejected invite for '{inviteRequest.ServerName}': Google Drive is not connected on this machine.");
+                                return false;
+                            }
+
                             var message =
                                 $"Вас приглашает {inviteRequest.OwnerUserName} в WorldHub-сервер «{inviteRequest.ServerName}».\n\nПринять?";
 
@@ -306,8 +323,8 @@ public partial class App : Application
                     {
                         var servers = await worldHubServerService.GetAllAsync(cancellationToken);
                         var matchingServer = servers.FirstOrDefault(s =>
-                            string.Equals(s.Name, serverDeletedNotification.ServerName, StringComparison.OrdinalIgnoreCase) ||
-                            (!string.IsNullOrWhiteSpace(s.HostDeviceId) &&
+                            string.Equals(s.Name, serverDeletedNotification.ServerName, StringComparison.OrdinalIgnoreCase) &&
+                            (string.IsNullOrWhiteSpace(serverDeletedNotification.HostDeviceId) ||
                              string.Equals(s.HostDeviceId, serverDeletedNotification.HostDeviceId, StringComparison.OrdinalIgnoreCase)));
 
                         if (matchingServer is not null)
@@ -316,7 +333,9 @@ public partial class App : Application
                             await worldHubServerService.DeleteWithCleanupAsync(
                                 matchingServer.Id,
                                 serverService,
-                                cancellationToken);
+                                googleDriveClient: null,
+                                deleteCloudFolder: false,
+                                cancellationToken: cancellationToken);
 
                             Current?.Dispatcher.Invoke(() =>
                             {

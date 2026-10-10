@@ -22,6 +22,7 @@ public partial class ConnectionView : UserControl
     private readonly GoogleDriveStatusCache _googleDriveStatusCache;
     private readonly LocalParticipantProvider _localParticipantProvider;
     private readonly WorldHubNetworkService _networkService;
+    private readonly GoogleDriveClient _googleDriveClient;
     private readonly string _localDeviceId;
     private readonly DispatcherTimer _refreshTimer;
 
@@ -61,6 +62,7 @@ public partial class ConnectionView : UserControl
         _serverService = serverService;
         _radminVpnDetector = radminVpnDetector;
         _googleDriveStatusCache = googleDriveStatusCache;
+        _googleDriveClient = googleDriveClient;
         _localParticipantProvider = localParticipantProvider;
         _localDeviceId = localDeviceId;
         _appSettingsService = appSettingsService;
@@ -529,9 +531,10 @@ public partial class ConnectionView : UserControl
                 "Удаление WorldHub-сервера",
                 $"Вы являетесь хостом сервера «{serverName}».\n\n" +
                 "Удалить этот WorldHub-сервер?\n" +
-                "• Сервер будет автоматически удалён у всех подключённых друзей.\n" +
-                "• Удалятся связи с вашими локальными Minecraft-серверами.\n" +
-                "• Отвяжется общая папка Google Drive (файлы в Drive останутся).\n\n" +
+                "• WorldHub-сервер будет удалён.\n" +
+                "• Общая папка Google Drive будет удалена вместе с сервером.\n" +
+                "• Отвязка локальных Minecraft-серверов.\n" +
+                "• У друзей сервер будет удалён автоматически.\n\n" +
                 "Это действие нельзя отменить.");
 
             if (!confirmed)
@@ -560,26 +563,39 @@ public partial class ConnectionView : UserControl
 
                     _ = Task.Run(async () =>
                     {
-                        foreach (var participant in otherParticipants)
+                        var tasks = otherParticipants.Select(async participant =>
                         {
                             try
                             {
                                 await _networkService.NotifyServerDeletedAsync(
                                     participant.IpAddress,
-                                    notification);
+                                    notification,
+                                    CancellationToken.None);
                             }
                             catch (Exception ex)
                             {
                                 AppLog.Warning($"Failed to notify {participant.IpAddress} about server deletion: {ex.Message}");
                             }
-                        }
+                        });
+
+                        await Task.WhenAll(tasks);
                     });
                 }
 
-                await _worldHubServerService.DeleteWithCleanupAsync(
+                var deleteResult = await _worldHubServerService.DeleteWithCleanupAsync(
                     serverId,
                     _serverService,
-                    token);
+                    _googleDriveClient,
+                    deleteCloudFolder: true,
+                    cancellationToken: token);
+
+                if (deleteResult is not null && !deleteResult.Success)
+                {
+                    DialogWindow.ShowWarning(
+                        owner,
+                        "Папка Google Drive не удалена",
+                        $"WorldHub-сервер «{serverName}» удалён локально, но общую папку в Google Drive удалить не удалось:\n{deleteResult.Message}");
+                }
 
                 _checkService.RemoveGate(serverId);
 
@@ -619,7 +635,8 @@ public partial class ConnectionView : UserControl
                 $"Вы не являетесь хостом сервера «{serverName}» (хост: {hostDisplay}).\n\n" +
                 "Покинуть этот WorldHub-сервер?\n" +
                 "• Сервер будет удалён из вашего приложения.\n" +
-                "• Вы будете удалены из списка участников на сервере у всех друзей.\n" +
+                "• Общая папка Google Drive не будет удалена (вы не её владелец).\n" +
+                "• Вы будете удалены из списка участников у всех друзей.\n" +
                 "• Связи с вашими локальными Minecraft-серверами будут сброшены.\n\n" +
                 "Продолжить?");
 
@@ -676,7 +693,9 @@ public partial class ConnectionView : UserControl
                 await _worldHubServerService.DeleteWithCleanupAsync(
                     serverId,
                     _serverService,
-                    token);
+                    _googleDriveClient,
+                    deleteCloudFolder: false,
+                    cancellationToken: token);
 
                 _checkService.RemoveGate(serverId);
 

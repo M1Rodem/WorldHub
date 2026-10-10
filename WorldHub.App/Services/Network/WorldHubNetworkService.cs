@@ -475,7 +475,7 @@ public sealed class WorldHubNetworkService : IDisposable
             cancellationToken,
             _disposeCts.Token);
 
-        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(12));
         using var finalCts = CancellationTokenSource.CreateLinkedTokenSource(
             linkedCts.Token,
             timeoutCts.Token);
@@ -523,6 +523,11 @@ public sealed class WorldHubNetworkService : IDisposable
                 }
             }
         }
+        catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
+        {
+            AppLog.Warning(
+                $"[NET] Timed out notifying {host} of server deletion (peer may be offline).");
+        }
         catch (Exception exception)
         {
             AppLog.Warning(
@@ -542,7 +547,7 @@ public sealed class WorldHubNetworkService : IDisposable
             cancellationToken,
             _disposeCts.Token);
 
-        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(12));
         using var finalCts = CancellationTokenSource.CreateLinkedTokenSource(
             linkedCts.Token,
             timeoutCts.Token);
@@ -589,6 +594,11 @@ public sealed class WorldHubNetworkService : IDisposable
                         $"[NET] ← WORLDHUB_PARTICIPANT_LEFT_OK from {host}");
                 }
             }
+        }
+        catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
+        {
+            AppLog.Warning(
+                $"[NET] Timed out notifying {host} that participant left (host may be offline).");
         }
         catch (Exception exception)
         {

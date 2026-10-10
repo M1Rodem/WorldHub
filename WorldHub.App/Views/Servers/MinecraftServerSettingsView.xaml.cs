@@ -178,6 +178,44 @@ public partial class MinecraftServerSettingsView : UserControl
         }
     }
 
+    private async void SaveWorldHubServerButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        var owner = Window.GetWindow(this);
+        Guid? worldHubServerId = WorldHubServerComboBox.SelectedValue as Guid?;
+
+        try
+        {
+            _server.WorldHubServerId = worldHubServerId;
+            await _serverService.UpdateAsync(_server);
+            await RefreshCloudBlockAsync();
+
+            AppLog.Success($"[SERVER] Привязка сервера «{_server.Name}» сохранена: WorldHubServerId={worldHubServerId}.");
+
+            if (owner is not null)
+            {
+                Views.Dialogs.DialogWindow.ShowInformation(
+                    owner,
+                    "Сохранено",
+                    worldHubServerId.HasValue
+                        ? "Minecraft-сервер успешно привязан к выбранному WorldHub-серверу."
+                        : "Привязка к WorldHub-серверу отключена.");
+            }
+        }
+        catch (Exception exception)
+        {
+            AppLog.Error($"Ошибка сохранения привязки WorldHub-сервера: {exception.Message}", exception);
+            if (owner is not null)
+            {
+                Views.Dialogs.DialogWindow.ShowError(
+                    owner,
+                    "Ошибка сохранения",
+                    $"Не удалось сохранить привязку:\n{exception.Message}");
+            }
+        }
+    }
+
     private async Task RefreshCloudBlockAsync()
     {
         var isGoogleConnected = string.Equals(

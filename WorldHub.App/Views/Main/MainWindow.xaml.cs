@@ -83,7 +83,10 @@ public partial class MainWindow
         _serversView = new ServersView(
             serverService,
             serverDetector,
-            processManager);
+            processManager,
+            worldHubServerService,
+            googleDriveClient,
+            googleDriveStatusCache);
 
         _settingsView = new SettingsView();
 

@@ -1,10 +1,12 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
+using WorldHub.App.Services.Network;
 using WorldHub.App.Views.Main;
 using WorldHub.Core.Enums;
 using WorldHub.Core.Interfaces;
+using WorldHub.Infrastructure.Google;
 using WorldHub.Infrastructure.Minecraft;
 using WorldHub.Sync.Services;
 
@@ -15,6 +17,9 @@ public partial class ServersView : UserControl
     private readonly ServerService _serverService;
     private readonly IServerDetector _serverDetector;
     private readonly DedicatedServerProcessManager _processManager;
+    private readonly WorldHubServerService? _worldHubServerService;
+    private readonly GoogleDriveClient? _googleDriveClient;
+    private readonly GoogleDriveStatusCache? _googleDriveStatusCache;
 
     private readonly DispatcherTimer _statusTimer;
 
@@ -23,7 +28,10 @@ public partial class ServersView : UserControl
     public ServersView(
         ServerService serverService,
         IServerDetector serverDetector,
-        DedicatedServerProcessManager processManager)
+        DedicatedServerProcessManager processManager,
+        WorldHubServerService? worldHubServerService = null,
+        GoogleDriveClient? googleDriveClient = null,
+        GoogleDriveStatusCache? googleDriveStatusCache = null)
     {
         ArgumentNullException.ThrowIfNull(serverService);
         ArgumentNullException.ThrowIfNull(serverDetector);
@@ -32,6 +40,9 @@ public partial class ServersView : UserControl
         _serverService = serverService;
         _serverDetector = serverDetector;
         _processManager = processManager;
+        _worldHubServerService = worldHubServerService;
+        _googleDriveClient = googleDriveClient;
+        _googleDriveStatusCache = googleDriveStatusCache;
 
         InitializeComponent();
 
@@ -85,6 +96,52 @@ public partial class ServersView : UserControl
 
         var result = window.ShowDialog();
 
+        if (result == true)
+        {
+            await LoadServersAsync();
+        }
+    }
+
+    private async void DownloadServerButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        var owner = Window.GetWindow(this);
+        if (_worldHubServerService is null || _googleDriveClient is null)
+        {
+            Views.Dialogs.DialogWindow.ShowWarning(
+                owner,
+                "Служба недоступна",
+                "Служба WorldHub или Google Drive недоступна.");
+            return;
+        }
+
+        var isGoogleConnected = string.Equals(
+            _googleDriveStatusCache?.GetStatusString(),
+            "DriveAvailable",
+            StringComparison.OrdinalIgnoreCase);
+
+        if (!isGoogleConnected)
+        {
+            Views.Dialogs.DialogWindow.ShowWarning(
+                owner,
+                "Google Drive не подключён",
+                "Для скачивания сервера из WorldHub необходимо подключить Google-аккаунт в «Настройках».");
+            return;
+        }
+
+        var worldSyncService = new WorldSyncService(_googleDriveClient);
+        var window = new DownloadServerFromWorldHubWindow(
+            _worldHubServerService,
+            worldSyncService,
+            _serverDetector,
+            _serverService,
+            _googleDriveStatusCache)
+        {
+            Owner = owner
+        };
+
+        var result = window.ShowDialog();
         if (result == true)
         {
             await LoadServersAsync();

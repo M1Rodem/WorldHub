@@ -84,7 +84,7 @@ public static class GoogleDriveStatusUiHelper
             WorldHub.Core.Enums.FolderAccessStatus.NoAccess =>
                 "Google Drive: нет доступа к папке",
             WorldHub.Core.Enums.FolderAccessStatus.FolderNotFound =>
-                "Google Drive: папка не найдена или недоступна",
+                "Google Drive: папка не найдена или доступ ещё применяется (подождите пару секунд и нажмите Проверить)",
             WorldHub.Core.Enums.FolderAccessStatus.NotAuthorized =>
                 "Google Drive: нет авторизации",
             WorldHub.Core.Enums.FolderAccessStatus.InsufficientScope =>
