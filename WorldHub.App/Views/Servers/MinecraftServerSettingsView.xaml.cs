@@ -407,7 +407,7 @@ public partial class MinecraftServerSettingsView : UserControl
             Views.Dialogs.DialogWindow.ShowError(
                 owner,
                 "Сервер запущен",
-                "Невозможно отправить мир в облако (Push), пока сервер запущен.\nОстановите сервер перед синхронизацией.");
+                "Невозможно отправить сервер в облако (Push), пока сервер запущен.\nОстановите сервер перед синхронизацией.");
             return;
         }
 
@@ -440,26 +440,23 @@ public partial class MinecraftServerSettingsView : UserControl
             return;
         }
 
-        // 3. Определяем имя мира и локальную папку
-        var worldName = GetWorldName(_server.LocalPath);
-        var worldPath = Path.Combine(_server.LocalPath, worldName);
-
-        if (!Directory.Exists(worldPath))
+        // 3. Проверяем наличие папки сервера
+        if (!Directory.Exists(_server.LocalPath))
         {
             Views.Dialogs.DialogWindow.ShowError(
                 owner,
-                "Мир не найден",
-                $"Папка мира «{worldName}» не найдена по пути:\n{worldPath}\nЗапустите сервер хотя бы один раз для генерации мира.");
+                "Папка сервера не найдена",
+                $"Папка сервера не найдена по пути:\n{_server.LocalPath}");
             return;
         }
 
         // 4. Запрашиваем подтверждение
         var confirmed = Views.Dialogs.DialogWindow.ShowConfirmation(
             owner,
-            "Отправка мира в облако (Push)",
-            $"Вы собираетесь выгрузить мир «{worldName}» в общую папку «{worldHubServer.Name}».\n\n" +
-            "• Мир будет упакован и отправлен на Google Drive.\n" +
-            "• Все участники сервера смогут получить (Pull) эту версию.\n\n" +
+            "Отправка сервера в облако (Push)",
+            $"Вы собираетесь выгрузить весь сервер «{_server.Name}» в общую папку «{worldHubServer.Name}».\n\n" +
+            "• Все файлы сервера (ядро, конфиги, плагины/моды, миры) будут упакованы и отправлены на Google Drive.\n" +
+            "• Друзья смогут получить актуальную копию всего сервера (Pull).\n\n" +
             "Продолжить?");
 
         if (!confirmed)
@@ -471,8 +468,8 @@ public partial class MinecraftServerSettingsView : UserControl
         PullButton.IsEnabled = false;
 
         var progressWindow = new Views.Dialogs.SyncProgressWindow(
-            "Отправка мира (Push)",
-            $"Выгрузка мира «{worldName}» в облако...",
+            "Отправка сервера (Push)",
+            $"Выгрузка сервера «{_server.Name}» в облако...",
             "/Assets/Icons/upload.svg",
             owner);
 
@@ -486,10 +483,10 @@ public partial class MinecraftServerSettingsView : UserControl
             var progress = new Progress<double>(p => progressWindow.ReportProgress(p));
             var statusMsg = new Progress<string>(s => progressWindow.ReportStatus(s));
 
-            await _worldSyncService.PushWorldAsync(
+            await _worldSyncService.PushServerAsync(
                 worldHubServer.GoogleDriveFolderId,
-                worldPath,
-                worldName,
+                _server.LocalPath,
+                _server.Name,
                 _server.MinecraftVersion,
                 _server.Loader,
                 _server.LoaderVersion,
@@ -498,12 +495,12 @@ public partial class MinecraftServerSettingsView : UserControl
                 progress,
                 statusMsg);
 
-            progressWindow.Complete("Мир успешно выгружен в Google Drive! Участники могут скачать его.");
+            progressWindow.Complete("Сервер успешно выгружен в Google Drive! Участники могут скачать его.");
         }
         catch (Exception exception)
         {
             AppLog.Error($"[SYNC] Ошибка Push: {exception.Message}", exception);
-            progressWindow.Complete($"Ошибка выгрузки мира: {exception.Message}", isSuccess: false);
+            progressWindow.Complete($"Ошибка выгрузки сервера: {exception.Message}", isSuccess: false);
         }
         finally
         {
@@ -529,7 +526,7 @@ public partial class MinecraftServerSettingsView : UserControl
             Views.Dialogs.DialogWindow.ShowError(
                 owner,
                 "Сервер запущен",
-                "Невозможно обновить мир из облака (Pull), пока сервер запущен.\nОстановите сервер перед синхронизацией.");
+                "Невозможно обновить сервер из облака (Pull), пока сервер запущен.\nОстановите сервер перед синхронизацией.");
             return;
         }
 
@@ -562,17 +559,14 @@ public partial class MinecraftServerSettingsView : UserControl
             return;
         }
 
-        // 3. Определяем имя мира и локальную папку
-        var worldName = GetWorldName(_server.LocalPath);
-        var worldPath = Path.Combine(_server.LocalPath, worldName);
-
-        // 4. Запрашиваем подтверждение
+        // 3. Запрашиваем подтверждение
         var confirmed = Views.Dialogs.DialogWindow.ShowConfirmation(
             owner,
-            "Загрузка мира из облака (Pull)",
-            $"Вы собираетесь скачать мир «{worldName}» из общей папки «{worldHubServer.Name}».\n\n" +
-            "• Если локальный мир уже существует, перед заменой будет автоматически создан бэкап.\n" +
-            "• Локальный мир будет заменён актуальной версией из Google Drive.\n\n" +
+            "Загрузка сервера из облака (Pull)",
+            $"Вы собираетесь скачать сервер из общей папки «{worldHubServer.Name}».\n\n" +
+            $"Целевая папка на вашем диске:\n{_server.LocalPath}\n\n" +
+            "• Перед заменой будет автоматически создан бэкап вашей текущей папки сервера.\n" +
+            "• Сервер будет обновлен до версии из Google Drive.\n\n" +
             "Продолжить?");
 
         if (!confirmed)
@@ -584,8 +578,8 @@ public partial class MinecraftServerSettingsView : UserControl
         PullButton.IsEnabled = false;
 
         var progressWindow = new Views.Dialogs.SyncProgressWindow(
-            "Загрузка мира (Pull)",
-            $"Скачивание мира «{worldName}» из облака...",
+            "Загрузка сервера (Pull)",
+            $"Скачивание сервера из общей папки...",
             "/Assets/Icons/download.svg",
             owner);
 
@@ -596,19 +590,18 @@ public partial class MinecraftServerSettingsView : UserControl
             var progress = new Progress<double>(p => progressWindow.ReportProgress(p));
             var statusMsg = new Progress<string>(s => progressWindow.ReportStatus(s));
 
-            await _worldSyncService.PullWorldAsync(
+            await _worldSyncService.PullServerAsync(
                 worldHubServer.GoogleDriveFolderId,
-                worldPath,
-                worldName,
+                _server.LocalPath,
                 progress,
                 statusMsg);
 
-            progressWindow.Complete("Мир успешно загружен и установлен из Google Drive!");
+            progressWindow.Complete("Сервер успешно скачан и установлен из Google Drive!");
         }
         catch (Exception exception)
         {
             AppLog.Error($"[SYNC] Ошибка Pull: {exception.Message}", exception);
-            progressWindow.Complete($"Ошибка загрузки мира: {exception.Message}", isSuccess: false);
+            progressWindow.Complete($"Ошибка загрузки сервера: {exception.Message}", isSuccess: false);
         }
         finally
         {

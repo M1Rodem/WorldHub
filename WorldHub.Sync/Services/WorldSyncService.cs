@@ -5,8 +5,8 @@ using WorldHub.Logging;
 
 namespace WorldHub.Sync.Services;
 
-public sealed record WorldManifest(
-    string WorldName,
+public sealed record ServerPackageManifest(
+    string ServerName,
     string MinecraftVersion,
     string? Loader,
     string? LoaderVersion,
@@ -15,17 +15,32 @@ public sealed record WorldManifest(
     string PushedByDeviceId,
     string ArchiveFileName,
     long ArchiveSizeBytes,
-    string WorldHash);
+    string PackageHash);
 
-public sealed record WorldSyncStatus(
-    bool HasCloudWorld,
-    WorldManifest? Manifest,
+public sealed record ServerPackageSyncStatus(
+    bool HasCloudPackage,
+    ServerPackageManifest? Manifest,
     string? CloudFileId);
 
 public sealed class WorldSyncService
 {
     private const string ManifestFileName = "manifest.json";
-    private const string WorldsSubfolderName = "worlds";
+    private const string ServerSubfolderName = "server_package";
+
+    // Файлы и папки, которые не нужно включать в облачный архив сервера
+    private static readonly HashSet<string> IgnoredDirectories = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "logs",
+        "crash-reports",
+        ".git",
+        ".vs",
+        "backups"
+    };
+
+    private static readonly HashSet<string> IgnoredFiles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "session.lock"
+    };
 
     private readonly GoogleDriveClient _googleDriveClient;
 
@@ -36,40 +51,33 @@ public sealed class WorldSyncService
     }
 
     /// <summary>
-    /// Проверяет наличие сохранённого мира в общей папке WorldHub-сервера.
+    /// Проверяет наличие пакета сервера в общей папке WorldHub-сервера.
     /// </summary>
-    public async Task<WorldSyncStatus> CheckCloudWorldStatusAsync(
+    public async Task<ServerPackageSyncStatus> CheckCloudServerStatusAsync(
         string worldHubFolderId,
-        string worldName,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(worldHubFolderId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(worldName);
 
         try
         {
-            var worldsFolderId = await _googleDriveClient.GetOrCreateSubfolderAsync(
+            var serverFolderId = await _googleDriveClient.GetOrCreateSubfolderAsync(
                 worldHubFolderId,
-                WorldsSubfolderName,
-                cancellationToken);
-
-            var specificWorldFolderId = await _googleDriveClient.GetOrCreateSubfolderAsync(
-                worldsFolderId,
-                worldName,
+                ServerSubfolderName,
                 cancellationToken);
 
             var manifestFile = await _googleDriveClient.FindFileInFolderAsync(
-                specificWorldFolderId,
+                serverFolderId,
                 ManifestFileName,
                 cancellationToken);
 
             if (manifestFile is null)
             {
-                return new WorldSyncStatus(false, null, null);
+                return new ServerPackageSyncStatus(false, null, null);
             }
 
             // Скачиваем манифест во временную память
-            var tempManifestPath = Path.Combine(Path.GetTempPath(), $"worldhub_manifest_{Guid.NewGuid():N}.json");
+            var tempManifestPath = Path.Combine(Path.GetTempPath(), $"worldhub_server_manifest_{Guid.NewGuid():N}.json");
             try
             {
                 await _googleDriveClient.DownloadFileAsync(
@@ -80,14 +88,14 @@ public sealed class WorldSyncService
                     cancellationToken);
 
                 var json = await File.ReadAllTextAsync(tempManifestPath, cancellationToken);
-                var manifest = JsonSerializer.Deserialize<WorldManifest>(json);
+                var manifest = JsonSerializer.Deserialize<ServerPackageManifest>(json);
 
                 var archiveFile = manifest is not null
-                    ? await _googleDriveClient.FindFileInFolderAsync(specificWorldFolderId, manifest.ArchiveFileName, cancellationToken)
+                    ? await _googleDriveClient.FindFileInFolderAsync(serverFolderId, manifest.ArchiveFileName, cancellationToken)
                     : null;
 
-                return new WorldSyncStatus(
-                    HasCloudWorld: archiveFile is not null,
+                return new ServerPackageSyncStatus(
+                    HasCloudPackage: archiveFile is not null,
                     Manifest: manifest,
                     CloudFileId: archiveFile?.Id);
             }
@@ -101,18 +109,18 @@ public sealed class WorldSyncService
         }
         catch (Exception exception)
         {
-            AppLog.Warning($"[SYNC] Ошибка проверки облачного мира '{worldName}': {exception.Message}", exception);
-            return new WorldSyncStatus(false, null, null);
+            AppLog.Warning($"[SYNC] Ошибка проверки облачного пакета сервера: {exception.Message}", exception);
+            return new ServerPackageSyncStatus(false, null, null);
         }
     }
 
     /// <summary>
-    /// Выполняет Push: архивирует папку мира и загружает её вместе с manifest.json в Google Drive.
+    /// Выполняет Push: архивирует ВСЮ директорию Minecraft-сервера и выгружает её в Google Drive.
     /// </summary>
-    public async Task PushWorldAsync(
+    public async Task PushServerAsync(
         string worldHubFolderId,
-        string localWorldPath,
-        string worldName,
+        string serverDirectory,
+        string serverName,
         string minecraftVersion,
         string? loader,
         string? loaderVersion,
@@ -123,34 +131,30 @@ public sealed class WorldSyncService
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(worldHubFolderId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(localWorldPath);
-        ArgumentException.ThrowIfNullOrWhiteSpace(worldName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(serverDirectory);
+        ArgumentException.ThrowIfNullOrWhiteSpace(serverName);
 
-        if (!Directory.Exists(localWorldPath))
+        if (!Directory.Exists(serverDirectory))
         {
-            throw new DirectoryNotFoundException($"Папка мира не найдена: {localWorldPath}");
+            throw new DirectoryNotFoundException($"Папка сервера не найдена: {serverDirectory}");
         }
 
-        statusMessage?.Report("Подготовка папок в Google Drive...");
-        var worldsFolderId = await _googleDriveClient.GetOrCreateSubfolderAsync(
+        statusMessage?.Report("Подготовка папки сервера в Google Drive...");
+        var serverFolderId = await _googleDriveClient.GetOrCreateSubfolderAsync(
             worldHubFolderId,
-            WorldsSubfolderName,
+            ServerSubfolderName,
             cancellationToken);
 
-        var specificWorldFolderId = await _googleDriveClient.GetOrCreateSubfolderAsync(
-            worldsFolderId,
-            worldName,
-            cancellationToken);
-
-        var tempDir = Path.Combine(Path.GetTempPath(), "WorldHub_Push_" + Guid.NewGuid().ToString("N"));
+        var tempDir = Path.Combine(Path.GetTempPath(), "WorldHub_Server_Push_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
-        var zipPath = Path.Combine(tempDir, $"{worldName}.zip");
+        var archiveFileName = "server.zip";
+        var zipPath = Path.Combine(tempDir, archiveFileName);
         var manifestPath = Path.Combine(tempDir, ManifestFileName);
 
         try
         {
-            statusMessage?.Report("Архивация мира...");
-            AppLog.Log($"[SYNC] Начало архивации мира '{worldName}' из {localWorldPath}...");
+            statusMessage?.Report("Архивация всех файлов сервера...");
+            AppLog.Log($"[SYNC] Начало архивации сервера из {serverDirectory}...");
 
             await Task.Run(() =>
             {
@@ -160,7 +164,7 @@ public sealed class WorldSyncService
                 }
 
                 using var archive = ZipFile.Open(zipPath, ZipArchiveMode.Create);
-                var dirInfo = new DirectoryInfo(localWorldPath);
+                var dirInfo = new DirectoryInfo(serverDirectory);
                 var rootLen = dirInfo.FullName.Length;
                 if (!dirInfo.FullName.EndsWith(Path.DirectorySeparatorChar))
                 {
@@ -171,53 +175,53 @@ public sealed class WorldSyncService
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    // Игнорируем session.lock
-                    if (string.Equals(file.Name, "session.lock", StringComparison.OrdinalIgnoreCase))
+                    var relativePath = file.FullName[rootLen..].Replace('\\', '/');
+
+                    if (ShouldSkipFile(relativePath, file.Name))
                     {
                         continue;
                     }
 
-                    var entryName = file.FullName[rootLen..].Replace('\\', '/');
-                    archive.CreateEntryFromFile(file.FullName, entryName, CompressionLevel.Fastest);
+                    archive.CreateEntryFromFile(file.FullName, relativePath, CompressionLevel.Fastest);
                 }
             }, cancellationToken);
 
             var fileInfo = new FileInfo(zipPath);
-            AppLog.Success($"[SYNC] Мир упакован: {zipPath} ({fileInfo.Length / (1024 * 1024):N1} МБ)");
+            AppLog.Success($"[SYNC] Сервер упакован: {zipPath} ({fileInfo.Length / (1024 * 1024):N1} МБ)");
 
-            statusMessage?.Report("Загрузка архива в Google Drive...");
+            statusMessage?.Report("Загрузка архива сервера в Google Drive...");
             var archiveProgress = new Progress<double>(p =>
             {
                 progress?.Report(p * 0.9); // 0-90% на архив
             });
 
             var archiveFileId = await _googleDriveClient.UploadFileAsync(
-                specificWorldFolderId,
+                serverFolderId,
                 zipPath,
-                $"{worldName}.zip",
+                archiveFileName,
                 "application/zip",
                 archiveProgress,
                 cancellationToken);
 
-            statusMessage?.Report("Создание манифеста мира...");
-            var manifest = new WorldManifest(
-                WorldName: worldName,
+            statusMessage?.Report("Создание манифеста сервера...");
+            var manifest = new ServerPackageManifest(
+                ServerName: serverName,
                 MinecraftVersion: minecraftVersion,
                 Loader: loader,
                 LoaderVersion: loaderVersion,
                 PushedAtUtc: DateTimeOffset.UtcNow,
                 PushedByUserName: userName,
                 PushedByDeviceId: deviceId,
-                ArchiveFileName: $"{worldName}.zip",
+                ArchiveFileName: archiveFileName,
                 ArchiveSizeBytes: fileInfo.Length,
-                WorldHash: string.Empty);
+                PackageHash: string.Empty);
 
             var manifestJson = JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true });
             await File.WriteAllTextAsync(manifestPath, manifestJson, cancellationToken);
 
-            statusMessage?.Report("Загрузка манифеста...");
+            statusMessage?.Report("Загрузка манифеста сервера...");
             await _googleDriveClient.UploadFileAsync(
-                specificWorldFolderId,
+                serverFolderId,
                 manifestPath,
                 ManifestFileName,
                 "application/json",
@@ -225,8 +229,8 @@ public sealed class WorldSyncService
                 cancellationToken);
 
             progress?.Report(100.0);
-            statusMessage?.Report("Синхронизация (Push) успешно завершена!");
-            AppLog.Success($"[SYNC] Push мира '{worldName}' успешно выполнен!");
+            statusMessage?.Report("Синхронизация сервера (Push) успешно завершена!");
+            AppLog.Success($"[SYNC] Push сервера '{serverName}' успешно выполнен!");
         }
         finally
         {
@@ -244,37 +248,35 @@ public sealed class WorldSyncService
     }
 
     /// <summary>
-    /// Выполняет Pull: скачивает архив мира из Google Drive и распаковывает его в localWorldPath.
-    /// Перед распаковкой создаёт резервную копию текущего мира (если он существует).
+    /// Выполняет Pull: скачивает архив сервера из Google Drive и распаковывает его в targetDirectory.
+    /// Перед распаковкой создаёт бэкап папки, если она уже существует.
     /// </summary>
-    public async Task PullWorldAsync(
+    public async Task PullServerAsync(
         string worldHubFolderId,
-        string localWorldPath,
-        string worldName,
+        string targetDirectory,
         IProgress<double>? progress = null,
         IProgress<string>? statusMessage = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(worldHubFolderId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(localWorldPath);
-        ArgumentException.ThrowIfNullOrWhiteSpace(worldName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(targetDirectory);
 
-        statusMessage?.Report("Проверка данных мира в облаке...");
-        var cloudStatus = await CheckCloudWorldStatusAsync(worldHubFolderId, worldName, cancellationToken);
+        statusMessage?.Report("Проверка данных сервера в Google Drive...");
+        var cloudStatus = await CheckCloudServerStatusAsync(worldHubFolderId, cancellationToken);
 
-        if (!cloudStatus.HasCloudWorld || string.IsNullOrWhiteSpace(cloudStatus.CloudFileId))
+        if (!cloudStatus.HasCloudPackage || string.IsNullOrWhiteSpace(cloudStatus.CloudFileId))
         {
-            throw new InvalidOperationException($"В общей папке WorldHub нет сохранённой копии мира «{worldName}». Сначала выполните Push с сервера-источника.");
+            throw new InvalidOperationException("В общей папке WorldHub нет сохранённой копии сервера. Сначала выполните Push с сервера-источника.");
         }
 
-        var tempDir = Path.Combine(Path.GetTempPath(), "WorldHub_Pull_" + Guid.NewGuid().ToString("N"));
+        var tempDir = Path.Combine(Path.GetTempPath(), "WorldHub_Server_Pull_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
-        var zipPath = Path.Combine(tempDir, $"{worldName}.zip");
+        var zipPath = Path.Combine(tempDir, "server.zip");
 
         try
         {
-            statusMessage?.Report("Скачивание архива мира из Google Drive...");
-            AppLog.Log($"[SYNC] Начало скачивания архива мира '{worldName}' ({cloudStatus.Manifest?.ArchiveSizeBytes ?? 0} байт)...");
+            statusMessage?.Report("Скачивание сервера из Google Drive...");
+            AppLog.Log($"[SYNC] Начало скачивания архива сервера ({cloudStatus.Manifest?.ArchiveSizeBytes ?? 0} байт)...");
 
             var downloadProgress = new Progress<double>(p =>
             {
@@ -288,42 +290,40 @@ public sealed class WorldSyncService
                 downloadProgress,
                 cancellationToken);
 
-            AppLog.Success($"[SYNC] Архив успешно скачан: {zipPath}");
+            AppLog.Success($"[SYNC] Архив сервера скачан: {zipPath}");
 
-            statusMessage?.Report("Резервное копирование текущего мира...");
-            if (Directory.Exists(localWorldPath))
+            statusMessage?.Report("Резервное копирование текущей папки сервера...");
+            if (Directory.Exists(targetDirectory) && Directory.EnumerateFileSystemEntries(targetDirectory).Any())
             {
-                var parentDir = Directory.GetParent(localWorldPath)?.FullName ?? localWorldPath;
-                var backupDirName = $"{Path.GetFileName(localWorldPath)}_backup_{DateTime.Now:yyyyMMdd_HHmmss}";
+                var parentDir = Directory.GetParent(targetDirectory)?.FullName ?? targetDirectory;
+                var backupDirName = $"{Path.GetFileName(targetDirectory)}_backup_{DateTime.Now:yyyyMMdd_HHmmss}";
                 var backupPath = Path.Combine(parentDir, backupDirName);
 
                 try
                 {
-                    // Делаем быстрый бэкап переименованием или копированием
-                    AppLog.Log($"[SYNC] Резервная копия существующего мира -> {backupPath}");
-                    CopyDirectory(localWorldPath, backupPath);
+                    AppLog.Log($"[SYNC] Резервная копия текущей папки сервера -> {backupPath}");
+                    CopyDirectory(targetDirectory, backupPath);
                 }
                 catch (Exception ex)
                 {
-                    AppLog.Warning($"Не удалось создать локальную резервную копию мира: {ex.Message}", ex);
+                    AppLog.Warning($"Не удалось создать локальную резервную копию: {ex.Message}", ex);
                 }
             }
 
-            statusMessage?.Report("Распаковка мира в папку сервера...");
+            statusMessage?.Report("Распаковка сервера в рабочую папку...");
             await Task.Run(() =>
             {
-                if (!Directory.Exists(localWorldPath))
+                if (!Directory.Exists(targetDirectory))
                 {
-                    Directory.CreateDirectory(localWorldPath);
+                    Directory.CreateDirectory(targetDirectory);
                 }
 
-                // Распаковываем поверх с заменой
-                ZipFile.ExtractToDirectory(zipPath, localWorldPath, overwriteFiles: true);
+                ZipFile.ExtractToDirectory(zipPath, targetDirectory, overwriteFiles: true);
             }, cancellationToken);
 
             progress?.Report(100.0);
-            statusMessage?.Report("Синхронизация (Pull) успешно завершена!");
-            AppLog.Success($"[SYNC] Pull мира '{worldName}' завершён в {localWorldPath}!");
+            statusMessage?.Report("Сервер успешно скачан и установлен!");
+            AppLog.Success($"[SYNC] Pull сервера завершён в {targetDirectory}!");
         }
         finally
         {
@@ -338,6 +338,25 @@ public sealed class WorldSyncService
             {
             }
         }
+    }
+
+    private static bool ShouldSkipFile(string relativePath, string fileName)
+    {
+        if (IgnoredFiles.Contains(fileName))
+        {
+            return true;
+        }
+
+        var parts = relativePath.Split('/');
+        for (int i = 0; i < parts.Length - 1; i++)
+        {
+            if (IgnoredDirectories.Contains(parts[i]))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static void CopyDirectory(string sourceDir, string destinationDir)
