@@ -74,38 +74,44 @@
 
                     </StackPanel>
 
-                    <!-- BACK -->
-                    <Button
+                    <!-- ACTIONS (BACK) -->
+                    <StackPanel
                         Grid.Column="1"
-                        Style="{StaticResource SecondaryButton}"
-                        Width="96"
-                        Height="34"
-                        ToolTip="Назад к списку серверов"
-                        Click="BackButton_Click">
+                        Orientation="Horizontal"
+                        VerticalAlignment="Center">
 
-                        <StackPanel
-                            Orientation="Horizontal"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center">
+                        <Button
+                            Style="{StaticResource SecondaryButton}"
+                            Width="96"
+                            Height="34"
+                            ToolTip="Назад к списку серверов"
+                            Click="BackButton_Click">
 
-                            <svgc:SvgViewbox
-                                Width="14"
-                                Height="14"
-                                Margin="0,0,6,0"
-                                Stretch="Uniform"
-                                Source="/Assets/Icons/arrow-left.svg"/>
+                            <StackPanel
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center">
 
-                            <TextBlock
-                                VerticalAlignment="Center"
-                                Text="Назад"
-                                FontFamily="Inter, Segoe UI, sans-serif"
-                                FontSize="12"
-                                FontWeight="Medium"
-                                Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                <svgc:SvgViewbox
+                                    Width="14"
+                                    Height="14"
+                                    Margin="0,0,6,0"
+                                    Stretch="Uniform"
+                                    Source="/Assets/Icons/arrow-left.svg"/>
 
-                        </StackPanel>
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    Text="Назад"
+                                    FontFamily="Inter, Segoe UI, sans-serif"
+                                    FontSize="12"
+                                    FontWeight="Medium"
+                                    Foreground="{DynamicResource TextPrimaryBrush}"/>
 
-                    </Button>
+                            </StackPanel>
+
+                        </Button>
+
+                    </StackPanel>
 
                 </Grid>
 
@@ -427,9 +433,11 @@
                         Orientation="Horizontal">
 
                         <Button
+                            x:Name="PushButton"
                             Style="{StaticResource SecondaryButton}"
                             Width="108"
-                            Height="34">
+                            Height="34"
+                            Click="PushButton_Click">
 
                             <StackPanel Orientation="Horizontal">
 
@@ -451,10 +459,12 @@
                         </Button>
 
                         <Button
+                            x:Name="PullButton"
                             Style="{StaticResource SecondaryButton}"
                             Width="108"
                             Height="34"
-                            Margin="8,0,0,0">
+                            Margin="8,0,0,0"
+                            Click="PullButton_Click">
 
                             <StackPanel Orientation="Horizontal">
 
@@ -485,7 +495,7 @@
                         FontSize="11"
                         Foreground="{DynamicResource TextMutedBrush}"/>
 
-                    <!-- SERVER ACTION + STATUS -->
+                    <!-- SERVER ACTION + STATUS + DELETE -->
                     <StackPanel
                         Grid.Row="3"
                         Margin="0,24,0,0"
@@ -521,6 +531,25 @@
                                 Foreground="{DynamicResource TextSecondaryBrush}"/>
 
                         </StackPanel>
+
+                        <Button
+                            x:Name="DeleteServerButton"
+                            Style="{StaticResource DangerButton}"
+                            Height="36"
+                            Padding="14,0"
+                            Margin="24,0,0,0"
+                            ToolTip="Удалить сервер из программы (файлы останутся на диске)"
+                            Click="DeleteServerButton_Click">
+
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                Text="Удалить сервер"
+                                FontFamily="Inter, Segoe UI, sans-serif"
+                                FontSize="12"
+                                FontWeight="Medium"
+                                Foreground="#FFFFFF"/>
+
+                        </Button>
 
                     </StackPanel>
 

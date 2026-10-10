@@ -25,6 +25,9 @@ public partial class MainWindow
     private readonly ConnectionView _connectionView;
     private readonly RadminVpnDetector _radminVpnDetector;
     private readonly GoogleDriveStatusCache _googleDriveStatusCache;
+    private readonly GoogleDriveClient _googleDriveClient;
+    private readonly AppSettingsService _appSettingsService;
+    private readonly string _localDeviceId;
 
     public MainWindow(
         ServerService serverService,
@@ -56,6 +59,9 @@ public partial class MainWindow
 
         InitializeComponent();
 
+        _localDeviceId = localDeviceId;
+        _appSettingsService = appSettingsService;
+        _googleDriveClient = googleDriveClient;
         _processManager = processManager;
         _worldHubServerService = worldHubServerService;
         _serverService = serverService;
@@ -115,7 +121,10 @@ public partial class MainWindow
                 _serverService,
                 _worldHubServerService,
                 _processManager,
-                _googleDriveStatusCache);
+                _googleDriveStatusCache,
+                _localDeviceId,
+                _googleDriveClient,
+                _appSettingsService);
 
         settingsView.BackRequested += ServerSettingsView_BackRequested;
 
@@ -137,6 +146,16 @@ public partial class MainWindow
     {
         SetActiveTab(NavTab.Servers);
         ContentHost.Content = _serversView;
+    }
+
+    public void ReloadCurrentParticipantsIfMatches(Guid serverId)
+    {
+        _ = _connectionView.ReloadParticipantsIfMatchesAsync(serverId);
+    }
+
+    public void ReloadServerList(Guid? selectServerId = null)
+    {
+        _ = _connectionView.ReloadServerListAsync(selectServerId);
     }
 
     protected override void OnClosed(EventArgs e)

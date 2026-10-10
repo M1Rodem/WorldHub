@@ -15,6 +15,7 @@ public sealed class WorldHubParticipantCheckService
     private readonly Func<string>? _userNameProvider;
     private readonly Func<string>? _versionProvider;
     private readonly Func<string>? _googleDriveStatusProvider;
+    private readonly Func<CancellationToken, Task<string?>>? _googleEmailProvider;
 
     public WorldHubParticipantCheckService(
         WorldHubNetworkService networkService,
@@ -22,7 +23,8 @@ public sealed class WorldHubParticipantCheckService
         string? localDeviceId = null,
         Func<string>? userNameProvider = null,
         Func<string>? versionProvider = null,
-        Func<string>? googleDriveStatusProvider = null)
+        Func<string>? googleDriveStatusProvider = null,
+        Func<CancellationToken, Task<string?>>? googleEmailProvider = null)
     {
         ArgumentNullException.ThrowIfNull(networkService);
         ArgumentNullException.ThrowIfNull(serverService);
@@ -33,6 +35,7 @@ public sealed class WorldHubParticipantCheckService
         _userNameProvider = userNameProvider;
         _versionProvider = versionProvider;
         _googleDriveStatusProvider = googleDriveStatusProvider;
+        _googleEmailProvider = googleEmailProvider;
     }
 
     private SemaphoreSlim GetGate(Guid worldHubServerId)
@@ -240,12 +243,23 @@ public sealed class WorldHubParticipantCheckService
                 participant.GoogleDriveStatus = _googleDriveStatusProvider();
             }
 
+            if (_googleEmailProvider is not null)
+            {
+                try
+                {
+                    participant.GoogleEmail = await _googleEmailProvider(cancellationToken);
+                }
+                catch
+                {
+                }
+            }
+
             await _serverService.UpdateAsync(
                 server,
                 cancellationToken);
 
             AppLog.Log(
-                $"[SELF] {participant.IpAddress}: updated local profile (UserName: {participant.UserName}).");
+                $"[SELF] {participant.IpAddress}: updated local profile (UserName: {participant.UserName}, Email: {participant.GoogleEmail ?? "(none)"}).");
 
             return;
         }

@@ -55,6 +55,7 @@
             <StackPanel x:Name="FolderNotCreatedPanel" Margin="0,12,0,0">
 
                 <TextBlock
+                    x:Name="FolderNotCreatedMessageText"
                     Text="Папка ещё не создана. Создайте её, чтобы синхронизировать миры с участниками. Доступ будет выдан всем автоматически."
                     FontFamily="Inter, Segoe UI, sans-serif"
                     FontSize="12"

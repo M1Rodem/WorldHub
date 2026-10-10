@@ -6,6 +6,45 @@ public static class InviteProtocol
 {
     public const string InviteRequestCommand = "WORLDHUB_INVITE";
     public const string InviteResponseCommand = "WORLDHUB_INVITE_RESPONSE";
+
+    public const string ServerDeletedCommand = "WORLDHUB_SERVER_DELETED";
+    public const string ServerDeletedOkCommand = "WORLDHUB_SERVER_DELETED_OK";
+
+    public const string ParticipantLeftCommand = "WORLDHUB_PARTICIPANT_LEFT";
+    public const string ParticipantLeftOkCommand = "WORLDHUB_PARTICIPANT_LEFT_OK";
+}
+
+public sealed class ServerDeletedNotification
+{
+    [JsonConstructor]
+    public ServerDeletedNotification(
+        string serverName,
+        string hostDeviceId)
+    {
+        ServerName = serverName;
+        HostDeviceId = hostDeviceId;
+    }
+
+    public string ServerName { get; init; }
+    public string HostDeviceId { get; init; }
+}
+
+public sealed class ParticipantLeftNotification
+{
+    [JsonConstructor]
+    public ParticipantLeftNotification(
+        string serverName,
+        string participantDeviceId,
+        string participantUserName)
+    {
+        ServerName = serverName;
+        ParticipantDeviceId = participantDeviceId;
+        ParticipantUserName = participantUserName;
+    }
+
+    public string ServerName { get; init; }
+    public string ParticipantDeviceId { get; init; }
+    public string ParticipantUserName { get; init; }
 }
 
 public sealed class InviteRequest

@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\WorldHub.Core\WorldHub.Core.csproj" />
+    <ProjectReference Include="..\WorldHub.Infrastructure\WorldHub.Infrastructure.csproj" />
     <ProjectReference Include="..\WorldHub.Logging\WorldHub.Logging.csproj" />
     <ProjectReference Include="..\WorldHub.Network\WorldHub.Network.csproj" />
   </ItemGroup>

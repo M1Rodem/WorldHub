@@ -50,6 +50,8 @@ public sealed class WorldHubServerService
         {
             Id = Guid.NewGuid(),
             Name = name.Trim(),
+            HostDeviceId = owner?.DeviceId,
+            HostUserName = owner?.UserName,
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -73,6 +75,8 @@ public sealed class WorldHubServerService
         string serverName,
         string? folderId,
         string? ownerEmail,
+        string hostDeviceId,
+        string hostUserName,
         List<WorldHub.Network.Protocol.InviteParticipant> participants,
         string localDeviceId,
         string localUserName,
@@ -95,6 +99,8 @@ public sealed class WorldHubServerService
             Name = serverName.Trim(),
             GoogleDriveFolderId = folderId,
             GoogleDriveOwnerEmail = ownerEmail,
+            HostDeviceId = hostDeviceId,
+            HostUserName = hostUserName,
             CreatedAt = now,
             UpdatedAt = now
         };

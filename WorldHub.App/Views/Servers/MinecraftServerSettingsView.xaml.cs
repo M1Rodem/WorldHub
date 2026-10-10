@@ -1,10 +1,12 @@
 using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using WorldHub.App.Services.Network;
 using WorldHub.Core.Entities;
 using WorldHub.Core.Enums;
+using WorldHub.Infrastructure.Google;
 using WorldHub.Infrastructure.Minecraft;
 using WorldHub.Logging;
 using WorldHub.Sync.Services;
@@ -18,6 +20,10 @@ public partial class MinecraftServerSettingsView : UserControl
     private readonly WorldHubServerService _worldHubServerService;
     private readonly DedicatedServerProcessManager _processManager;
     private readonly GoogleDriveStatusCache? _googleDriveStatusCache;
+    private readonly string? _localDeviceId;
+    private readonly GoogleDriveClient? _googleDriveClient;
+    private readonly Services.Settings.AppSettingsService? _appSettingsService;
+    private readonly WorldSyncService? _worldSyncService;
 
     private bool _loadingWorldHubServers;
     private string? _currentFolderId;
@@ -29,7 +35,10 @@ public partial class MinecraftServerSettingsView : UserControl
         ServerService serverService,
         WorldHubServerService worldHubServerService,
         DedicatedServerProcessManager processManager,
-        GoogleDriveStatusCache? googleDriveStatusCache = null)
+        GoogleDriveStatusCache? googleDriveStatusCache = null,
+        string? localDeviceId = null,
+        GoogleDriveClient? googleDriveClient = null,
+        Services.Settings.AppSettingsService? appSettingsService = null)
     {
         ArgumentNullException.ThrowIfNull(server);
         ArgumentNullException.ThrowIfNull(serverService);
@@ -41,6 +50,14 @@ public partial class MinecraftServerSettingsView : UserControl
         _worldHubServerService = worldHubServerService;
         _processManager = processManager;
         _googleDriveStatusCache = googleDriveStatusCache;
+        _localDeviceId = localDeviceId;
+        _googleDriveClient = googleDriveClient;
+        _appSettingsService = appSettingsService;
+
+        if (_googleDriveClient is not null)
+        {
+            _worldSyncService = new WorldSyncService(_googleDriveClient);
+        }
 
         InitializeComponent();
 
@@ -70,10 +87,34 @@ public partial class MinecraftServerSettingsView : UserControl
         {
             _loadingWorldHubServers = true;
 
-            var servers =
+            var allServers =
                 await _worldHubServerService.GetAllAsync();
 
-            WorldHubServerComboBox.ItemsSource = servers;
+            // К WorldHub-серверу может привязать Minecraft-сервер только хост (создатель).
+            // Фильтруем серверы: показываем только те, где локальный пользователь является хостом.
+            IReadOnlyList<WorldHubServer> selectableServers;
+            if (!string.IsNullOrWhiteSpace(_localDeviceId))
+            {
+                selectableServers = allServers.Where(s =>
+                {
+                    var firstParticipant = s.Participants.FirstOrDefault();
+                    if (firstParticipant is not null && !string.IsNullOrWhiteSpace(firstParticipant.DeviceId))
+                    {
+                        return string.Equals(firstParticipant.DeviceId, _localDeviceId, StringComparison.OrdinalIgnoreCase);
+                    }
+                    if (!string.IsNullOrWhiteSpace(s.HostDeviceId))
+                    {
+                        return string.Equals(s.HostDeviceId, _localDeviceId, StringComparison.OrdinalIgnoreCase);
+                    }
+                    return true;
+                }).ToList();
+            }
+            else
+            {
+                selectableServers = allServers;
+            }
+
+            WorldHubServerComboBox.ItemsSource = selectableServers;
 
             if (_server.WorldHubServerId is Guid worldHubServerId)
             {
@@ -214,6 +255,65 @@ public partial class MinecraftServerSettingsView : UserControl
         }
     }
 
+    private async void DeleteServerButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        var owner = Window.GetWindow(this);
+        if (owner is null)
+        {
+            return;
+        }
+
+        var status = _processManager.GetStatus(_server.Id);
+        if (status == ServerStatus.Running)
+        {
+            Views.Dialogs.DialogWindow.ShowWarning(
+                owner,
+                "Сервер работает",
+                $"Нельзя удалить сервер «{_server.Name}», пока он запущен.\nОстановите сервер перед удалением.");
+            return;
+        }
+
+        var confirmed = Views.Dialogs.DialogWindow.ShowConfirmation(
+            owner,
+            "Удаление сервера",
+            $"Вы действительно хотите удалить сервер «{_server.Name}»?\n\n" +
+            "• Сервер будет удалён только из программы WorldHub.\n" +
+            "• Файлы сервера на вашем диске останутся нетронутыми:\n" +
+            $"  {_server.LocalPath}\n\n" +
+            "Продолжить?");
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        DeleteServerButton.IsEnabled = false;
+
+        try
+        {
+            await _serverService.DeleteAsync(_server.Id);
+
+            AppLog.Success($"[SERVER] Сервер «{_server.Name}» удалён из программы.");
+
+            BackRequested?.Invoke(
+                this,
+                EventArgs.Empty);
+        }
+        catch (Exception exception)
+        {
+            AppLog.Error($"Не удалось удалить сервер «{_server.Name}»: {exception.Message}", exception);
+
+            Views.Dialogs.DialogWindow.ShowError(
+                owner,
+                "Ошибка удаления",
+                $"Не удалось удалить сервер.\n\n{exception.Message}");
+
+            DeleteServerButton.IsEnabled = true;
+        }
+    }
+
     private void BackButton_Click(
         object sender,
         RoutedEventArgs e)
@@ -288,5 +388,260 @@ public partial class MinecraftServerSettingsView : UserControl
                 ServerActionButton.Style = primaryStyle;
             }
         }
+    }
+
+    private async void PushButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        var owner = Window.GetWindow(this);
+        if (owner is null)
+        {
+            return;
+        }
+
+        // 1. Проверяем статус работы сервера
+        var status = _processManager.GetStatus(_server.Id);
+        if (status == ServerStatus.Running)
+        {
+            Views.Dialogs.DialogWindow.ShowError(
+                owner,
+                "Сервер запущен",
+                "Невозможно отправить мир в облако (Push), пока сервер запущен.\nОстановите сервер перед синхронизацией.");
+            return;
+        }
+
+        // 2. Проверяем привязку к WorldHub-серверу
+        if (_server.WorldHubServerId is null)
+        {
+            Views.Dialogs.DialogWindow.ShowError(
+                owner,
+                "Нет привязки к WorldHub-серверу",
+                "Этот Minecraft-сервер не привязан к WorldHub-серверу.\nВыберите сервер в блоке «Облако» выше.");
+            return;
+        }
+
+        var worldHubServer = await _worldHubServerService.GetByIdAsync(_server.WorldHubServerId.Value);
+        if (worldHubServer is null || string.IsNullOrWhiteSpace(worldHubServer.GoogleDriveFolderId))
+        {
+            Views.Dialogs.DialogWindow.ShowError(
+                owner,
+                "Общая папка не найдена",
+                "У привязанного WorldHub-сервера ещё не создана общая папка Google Drive.\nСоздайте её в разделе «Подключение».");
+            return;
+        }
+
+        if (_worldSyncService is null)
+        {
+            Views.Dialogs.DialogWindow.ShowError(
+                owner,
+                "Google Drive не подключен",
+                "Служба Google Drive недоступна. Проверьте авторизацию в Настройках.");
+            return;
+        }
+
+        // 3. Определяем имя мира и локальную папку
+        var worldName = GetWorldName(_server.LocalPath);
+        var worldPath = Path.Combine(_server.LocalPath, worldName);
+
+        if (!Directory.Exists(worldPath))
+        {
+            Views.Dialogs.DialogWindow.ShowError(
+                owner,
+                "Мир не найден",
+                $"Папка мира «{worldName}» не найдена по пути:\n{worldPath}\nЗапустите сервер хотя бы один раз для генерации мира.");
+            return;
+        }
+
+        // 4. Запрашиваем подтверждение
+        var confirmed = Views.Dialogs.DialogWindow.ShowConfirmation(
+            owner,
+            "Отправка мира в облако (Push)",
+            $"Вы собираетесь выгрузить мир «{worldName}» в общую папку «{worldHubServer.Name}».\n\n" +
+            "• Мир будет упакован и отправлен на Google Drive.\n" +
+            "• Все участники сервера смогут получить (Pull) эту версию.\n\n" +
+            "Продолжить?");
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        PushButton.IsEnabled = false;
+        PullButton.IsEnabled = false;
+
+        var progressWindow = new Views.Dialogs.SyncProgressWindow(
+            "Отправка мира (Push)",
+            $"Выгрузка мира «{worldName}» в облако...",
+            "/Assets/Icons/upload.svg",
+            owner);
+
+        progressWindow.Show();
+
+        try
+        {
+            var userName = _appSettingsService?.GetUserName() ?? Environment.UserName;
+            var deviceId = _localDeviceId ?? string.Empty;
+
+            var progress = new Progress<double>(p => progressWindow.ReportProgress(p));
+            var statusMsg = new Progress<string>(s => progressWindow.ReportStatus(s));
+
+            await _worldSyncService.PushWorldAsync(
+                worldHubServer.GoogleDriveFolderId,
+                worldPath,
+                worldName,
+                _server.MinecraftVersion,
+                _server.Loader,
+                _server.LoaderVersion,
+                userName,
+                deviceId,
+                progress,
+                statusMsg);
+
+            progressWindow.Complete("Мир успешно выгружен в Google Drive! Участники могут скачать его.");
+        }
+        catch (Exception exception)
+        {
+            AppLog.Error($"[SYNC] Ошибка Push: {exception.Message}", exception);
+            progressWindow.Complete($"Ошибка выгрузки мира: {exception.Message}", isSuccess: false);
+        }
+        finally
+        {
+            PushButton.IsEnabled = true;
+            PullButton.IsEnabled = true;
+        }
+    }
+
+    private async void PullButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        var owner = Window.GetWindow(this);
+        if (owner is null)
+        {
+            return;
+        }
+
+        // 1. Проверяем статус работы сервера
+        var status = _processManager.GetStatus(_server.Id);
+        if (status == ServerStatus.Running)
+        {
+            Views.Dialogs.DialogWindow.ShowError(
+                owner,
+                "Сервер запущен",
+                "Невозможно обновить мир из облака (Pull), пока сервер запущен.\nОстановите сервер перед синхронизацией.");
+            return;
+        }
+
+        // 2. Проверяем привязку к WorldHub-серверу
+        if (_server.WorldHubServerId is null)
+        {
+            Views.Dialogs.DialogWindow.ShowError(
+                owner,
+                "Нет привязки к WorldHub-серверу",
+                "Этот Minecraft-сервер не привязан к WorldHub-серверу.\nВыберите сервер в блоке «Облако» выше.");
+            return;
+        }
+
+        var worldHubServer = await _worldHubServerService.GetByIdAsync(_server.WorldHubServerId.Value);
+        if (worldHubServer is null || string.IsNullOrWhiteSpace(worldHubServer.GoogleDriveFolderId))
+        {
+            Views.Dialogs.DialogWindow.ShowError(
+                owner,
+                "Общая папка не найдена",
+                "У привязанного WorldHub-сервера ещё не создана общая папка Google Drive.\nСоздайте её в разделе «Подключение».");
+            return;
+        }
+
+        if (_worldSyncService is null)
+        {
+            Views.Dialogs.DialogWindow.ShowError(
+                owner,
+                "Google Drive не подключен",
+                "Служба Google Drive недоступна. Проверьте авторизацию в Настройках.");
+            return;
+        }
+
+        // 3. Определяем имя мира и локальную папку
+        var worldName = GetWorldName(_server.LocalPath);
+        var worldPath = Path.Combine(_server.LocalPath, worldName);
+
+        // 4. Запрашиваем подтверждение
+        var confirmed = Views.Dialogs.DialogWindow.ShowConfirmation(
+            owner,
+            "Загрузка мира из облака (Pull)",
+            $"Вы собираетесь скачать мир «{worldName}» из общей папки «{worldHubServer.Name}».\n\n" +
+            "• Если локальный мир уже существует, перед заменой будет автоматически создан бэкап.\n" +
+            "• Локальный мир будет заменён актуальной версией из Google Drive.\n\n" +
+            "Продолжить?");
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        PushButton.IsEnabled = false;
+        PullButton.IsEnabled = false;
+
+        var progressWindow = new Views.Dialogs.SyncProgressWindow(
+            "Загрузка мира (Pull)",
+            $"Скачивание мира «{worldName}» из облака...",
+            "/Assets/Icons/download.svg",
+            owner);
+
+        progressWindow.Show();
+
+        try
+        {
+            var progress = new Progress<double>(p => progressWindow.ReportProgress(p));
+            var statusMsg = new Progress<string>(s => progressWindow.ReportStatus(s));
+
+            await _worldSyncService.PullWorldAsync(
+                worldHubServer.GoogleDriveFolderId,
+                worldPath,
+                worldName,
+                progress,
+                statusMsg);
+
+            progressWindow.Complete("Мир успешно загружен и установлен из Google Drive!");
+        }
+        catch (Exception exception)
+        {
+            AppLog.Error($"[SYNC] Ошибка Pull: {exception.Message}", exception);
+            progressWindow.Complete($"Ошибка загрузки мира: {exception.Message}", isSuccess: false);
+        }
+        finally
+        {
+            PushButton.IsEnabled = true;
+            PullButton.IsEnabled = true;
+        }
+    }
+
+    private static string GetWorldName(string serverDirectory)
+    {
+        try
+        {
+            var propsFile = Path.Combine(serverDirectory, "server.properties");
+            if (File.Exists(propsFile))
+            {
+                foreach (var line in File.ReadLines(propsFile))
+                {
+                    var trimmed = line.Trim();
+                    if (trimmed.StartsWith("level-name=", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var val = trimmed["level-name=".Length..].Trim();
+                        if (!string.IsNullOrWhiteSpace(val))
+                        {
+                            return val;
+                        }
+                    }
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return "world";
     }
 }

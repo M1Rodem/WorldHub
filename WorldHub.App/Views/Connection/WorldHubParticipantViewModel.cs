@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Media;
 using WorldHub.Core.Entities;
@@ -18,14 +18,17 @@ public sealed class WorldHubParticipantViewModel : INotifyPropertyChanged
 
     private WorldHubParticipant _participant;
     private readonly string? _localDeviceId;
+    private readonly bool _isCurrentLocalUserHost;
 
     public WorldHubParticipantViewModel(
         WorldHubParticipant participant,
-        string? localDeviceId = null)
+        string? localDeviceId = null,
+        bool isCurrentLocalUserHost = false)
     {
         ArgumentNullException.ThrowIfNull(participant);
         _participant = participant;
         _localDeviceId = localDeviceId;
+        _isCurrentLocalUserHost = isCurrentLocalUserHost;
     }
 
     public bool IsSelf =>
@@ -35,6 +38,11 @@ public sealed class WorldHubParticipantViewModel : INotifyPropertyChanged
             _localDeviceId,
             _participant.DeviceId,
             StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Удалить участника из сервера может только хост, и хост не может удалить сам себя через эту кнопку (себя удаляют через удаление сервера).
+    /// </summary>
+    public bool CanDelete => _isCurrentLocalUserHost && !IsSelf;
 
     public Guid Id => _participant.Id;
 

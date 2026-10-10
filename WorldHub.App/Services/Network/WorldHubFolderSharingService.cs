@@ -1,4 +1,4 @@
-﻿using WorldHub.Core.Entities;
+using WorldHub.Core.Entities;
 using WorldHub.Infrastructure.Google;
 using WorldHub.Logging;
 using WorldHub.Sync.Services;
@@ -58,6 +58,14 @@ public sealed class WorldHubFolderSharingService
             {
                 AppLog.Log(
                     $"[SHARE] Skip {participant.IpAddress}: GoogleEmail unknown.");
+                continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(server.GoogleDriveOwnerEmail) &&
+                string.Equals(participant.GoogleEmail, server.GoogleDriveOwnerEmail, StringComparison.OrdinalIgnoreCase))
+            {
+                AppLog.Log(
+                    $"[SHARE] Skip {participant.IpAddress}: Owner ({participant.GoogleEmail}).");
                 continue;
             }
 

@@ -44,6 +44,14 @@ public partial class WorldHubFolderSection : UserControl
         _sharingService = sharingService;
     }
 
+    private bool _isHost = true;
+
+    public void SetHostStatus(bool isHost)
+    {
+        _isHost = isHost;
+        UpdateFolderUi();
+    }
+
     public void SetServer(WorldHubServer? server)
     {
         _currentServer = server;
@@ -66,6 +74,17 @@ public partial class WorldHubFolderSection : UserControl
         {
             FolderNotCreatedPanel.Visibility = Visibility.Visible;
             FolderCreatedPanel.Visibility = Visibility.Collapsed;
+
+            if (_isHost)
+            {
+                FolderNotCreatedMessageText.Text = "Папка ещё не создана. Создайте её, чтобы синхронизировать миры с участниками. Доступ будет выдан всем автоматически.";
+                CreateFolderButton.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                FolderNotCreatedMessageText.Text = "Общая папка ещё не создана хостом сервера. Когда создатель сервера создаст её, она появится здесь автоматически.";
+                CreateFolderButton.Visibility = Visibility.Collapsed;
+            }
             return;
         }
 
@@ -93,6 +112,17 @@ public partial class WorldHubFolderSection : UserControl
         if (_currentServer is null || _sharingService is null)
         {
             return;
+        }
+
+        if (_worldHubServerService is not null)
+        {
+            var freshServer = await _worldHubServerService.GetByIdAsync(
+                _currentServer.Id,
+                cancellationToken);
+            if (freshServer is not null)
+            {
+                _currentServer = freshServer;
+            }
         }
 
         if (string.IsNullOrWhiteSpace(_currentServer.GoogleDriveFolderId))

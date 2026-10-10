@@ -95,13 +95,13 @@
 
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource DangerButton}">
-                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Setter Property="Visibility" Value="Collapsed"/>
                                         <Setter Property="FontSize" Value="11"/>
                                         <Setter Property="Height" Value="28"/>
                                         <Setter Property="Padding" Value="8,0"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsSelf}" Value="True">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            <DataTrigger Binding="{Binding CanDelete}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>

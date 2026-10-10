@@ -26,6 +26,8 @@ public sealed class WorldHubNetworkService : IDisposable
     private readonly Func<string, CancellationToken, Task<ServerInfo>> _serverInfoProvider;
     private readonly Func<PeerInfo, string, CancellationToken, Task>? _remoteProfileReceivedHandler;
     private readonly Func<InviteRequest, CancellationToken, Task<bool>>? _inviteHandler;
+    private readonly Func<ServerDeletedNotification, CancellationToken, Task>? _serverDeletedHandler;
+    private readonly Func<ParticipantLeftNotification, CancellationToken, Task>? _participantLeftHandler;
     private readonly CancellationTokenSource _disposeCts = new();
 
     private bool _disposed;
@@ -41,6 +43,8 @@ public sealed class WorldHubNetworkService : IDisposable
         Func<string, CancellationToken, Task<ServerInfo>> serverInfoProvider,
         Func<PeerInfo, string, CancellationToken, Task>? remoteProfileReceivedHandler = null,
         Func<InviteRequest, CancellationToken, Task<bool>>? inviteHandler = null,
+        Func<ServerDeletedNotification, CancellationToken, Task>? serverDeletedHandler = null,
+        Func<ParticipantLeftNotification, CancellationToken, Task>? participantLeftHandler = null,
         int port = DefaultPort)
     {
         ArgumentNullException.ThrowIfNull(networkService);
@@ -67,6 +71,8 @@ public sealed class WorldHubNetworkService : IDisposable
         _serverInfoProvider = serverInfoProvider;
         _remoteProfileReceivedHandler = remoteProfileReceivedHandler;
         _inviteHandler = inviteHandler;
+        _serverDeletedHandler = serverDeletedHandler;
+        _participantLeftHandler = participantLeftHandler;
         Port = port;
 
         _networkHost = new NetworkHost(
@@ -457,6 +463,140 @@ public sealed class WorldHubNetworkService : IDisposable
         }
     }
 
+    public async Task NotifyServerDeletedAsync(
+        string host,
+        ServerDeletedNotification notification,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(host);
+        ArgumentNullException.ThrowIfNull(notification);
+
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            _disposeCts.Token);
+
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var finalCts = CancellationTokenSource.CreateLinkedTokenSource(
+            linkedCts.Token,
+            timeoutCts.Token);
+
+        var token = finalCts.Token;
+
+        try
+        {
+            var connection = await _networkProvider.ConnectAsync(
+                host,
+                Port,
+                token);
+
+            await using (connection)
+            {
+                await NetworkHandshake.SendHelloAsync(
+                    connection,
+                    token);
+
+                await NetworkHandshake.WaitForServerHelloAsync(
+                    connection,
+                    token);
+
+                AppLog.Log(
+                    $"[NET] → WORLDHUB_SERVER_DELETED to {host} for server '{notification.ServerName}'");
+
+                await WorldTransferProtocol.SendMessageAsync(
+                    connection,
+                    InviteProtocol.ServerDeletedCommand,
+                    token);
+
+                await WorldTransferProtocol.SendJsonAsync(
+                    connection,
+                    notification,
+                    token);
+
+                var responseCommand = await WorldTransferProtocol.ReceiveMessageAsync(
+                    connection,
+                    token);
+
+                if (responseCommand == InviteProtocol.ServerDeletedOkCommand)
+                {
+                    AppLog.Success(
+                        $"[NET] ← WORLDHUB_SERVER_DELETED_OK from {host}");
+                }
+            }
+        }
+        catch (Exception exception)
+        {
+            AppLog.Warning(
+                $"[NET] Failed to notify {host} of server deletion: {exception.Message}");
+        }
+    }
+
+    public async Task NotifyParticipantLeftAsync(
+        string host,
+        ParticipantLeftNotification notification,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(host);
+        ArgumentNullException.ThrowIfNull(notification);
+
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            _disposeCts.Token);
+
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var finalCts = CancellationTokenSource.CreateLinkedTokenSource(
+            linkedCts.Token,
+            timeoutCts.Token);
+
+        var token = finalCts.Token;
+
+        try
+        {
+            var connection = await _networkProvider.ConnectAsync(
+                host,
+                Port,
+                token);
+
+            await using (connection)
+            {
+                await NetworkHandshake.SendHelloAsync(
+                    connection,
+                    token);
+
+                await NetworkHandshake.WaitForServerHelloAsync(
+                    connection,
+                    token);
+
+                AppLog.Log(
+                    $"[NET] → WORLDHUB_PARTICIPANT_LEFT to {host} ({notification.ParticipantUserName} left '{notification.ServerName}')");
+
+                await WorldTransferProtocol.SendMessageAsync(
+                    connection,
+                    InviteProtocol.ParticipantLeftCommand,
+                    token);
+
+                await WorldTransferProtocol.SendJsonAsync(
+                    connection,
+                    notification,
+                    token);
+
+                var responseCommand = await WorldTransferProtocol.ReceiveMessageAsync(
+                    connection,
+                    token);
+
+                if (responseCommand == InviteProtocol.ParticipantLeftOkCommand)
+                {
+                    AppLog.Success(
+                        $"[NET] ← WORLDHUB_PARTICIPANT_LEFT_OK from {host}");
+                }
+            }
+        }
+        catch (Exception exception)
+        {
+            AppLog.Warning(
+                $"[NET] Failed to notify {host} that participant left: {exception.Message}");
+        }
+    }
+
     private async Task HandleConnectionAsync(
         NetworkConnection connection,
         CancellationToken cancellationToken)
@@ -510,6 +650,80 @@ public sealed class WorldHubNetworkService : IDisposable
 
             AppLog.Log(
                 $"[INVITE] → WORLDHUB_INVITE_RESPONSE to {remoteEndPoint}: Accepted={accepted}");
+
+            return;
+        }
+
+        // Ветка WORLDHUB_SERVER_DELETED.
+        if (command == InviteProtocol.ServerDeletedCommand)
+        {
+            var remoteEndPoint = connection.Client.Client.RemoteEndPoint?.ToString() ?? "?";
+            AppLog.Log($"[NET] ← WORLDHUB_SERVER_DELETED from {remoteEndPoint}");
+
+            var notification = await WorldTransferProtocol.ReceiveJsonAsync<ServerDeletedNotification>(
+                connection,
+                cancellationToken);
+
+            AppLog.Log(
+                $"[SYNC] Server '{notification.ServerName}' deleted by host ({notification.HostDeviceId}).");
+
+            if (_serverDeletedHandler is not null)
+            {
+                try
+                {
+                    await _serverDeletedHandler(
+                        notification,
+                        cancellationToken);
+                }
+                catch (Exception exception)
+                {
+                    AppLog.Error(
+                        $"[SYNC] ServerDeletedHandler error: {exception.Message}",
+                        exception);
+                }
+            }
+
+            await WorldTransferProtocol.SendMessageAsync(
+                connection,
+                InviteProtocol.ServerDeletedOkCommand,
+                cancellationToken);
+
+            return;
+        }
+
+        // Ветка WORLDHUB_PARTICIPANT_LEFT.
+        if (command == InviteProtocol.ParticipantLeftCommand)
+        {
+            var remoteEndPoint = connection.Client.Client.RemoteEndPoint?.ToString() ?? "?";
+            AppLog.Log($"[NET] ← WORLDHUB_PARTICIPANT_LEFT from {remoteEndPoint}");
+
+            var notification = await WorldTransferProtocol.ReceiveJsonAsync<ParticipantLeftNotification>(
+                connection,
+                cancellationToken);
+
+            AppLog.Log(
+                $"[SYNC] Participant '{notification.ParticipantUserName}' left server '{notification.ServerName}'.");
+
+            if (_participantLeftHandler is not null)
+            {
+                try
+                {
+                    await _participantLeftHandler(
+                        notification,
+                        cancellationToken);
+                }
+                catch (Exception exception)
+                {
+                    AppLog.Error(
+                        $"[SYNC] ParticipantLeftHandler error: {exception.Message}",
+                        exception);
+                }
+            }
+
+            await WorldTransferProtocol.SendMessageAsync(
+                connection,
+                InviteProtocol.ParticipantLeftOkCommand,
+                cancellationToken);
 
             return;
         }

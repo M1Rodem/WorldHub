@@ -1,4 +1,4 @@
-﻿namespace WorldHub.Core.Entities;
+namespace WorldHub.Core.Entities;
 
 public sealed class WorldHubServer
 {
@@ -23,4 +23,14 @@ public sealed class WorldHubServer
     /// Может совпадать с владельцем сервера, но это разные понятия.
     /// </summary>
     public string? GoogleDriveOwnerEmail { get; set; }
+
+    /// <summary>
+    /// DeviceId создателя (хоста) WorldHub-сервера.
+    /// </summary>
+    public string? HostDeviceId { get; set; }
+
+    /// <summary>
+    /// Имя создателя (хоста) WorldHub-сервера.
+    /// </summary>
+    public string? HostUserName { get; set; }
 }

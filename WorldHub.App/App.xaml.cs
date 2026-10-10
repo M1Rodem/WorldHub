@@ -92,6 +92,19 @@ public partial class App : Application
 
         // === Репозитории и сервисы, которые нужны WorldHubNetworkService ===
 
+        var serversPath =
+            Path.Combine(
+                dataPath,
+                "servers");
+
+        var serverRepository =
+            new JsonServerRepository(
+                serversPath);
+
+        var serverService =
+            new ServerService(
+                serverRepository);
+
         var worldHubServersPath =
             Path.Combine(
                 dataPath,
@@ -191,6 +204,22 @@ public partial class App : Application
 
                                 AppLog.Success(
                                     $"[PEER] Automatically updated remote participant '{match.UserName ?? match.IpAddress}' from incoming handshake.");
+
+                                if (!string.IsNullOrWhiteSpace(server.GoogleDriveFolderId) &&
+                                    !string.IsNullOrWhiteSpace(match.GoogleEmail))
+                                {
+                                    _ = Task.Run(async () =>
+                                    {
+                                        try
+                                        {
+                                            await worldHubFolderSharingService.ShareWithAllParticipantsAsync(server);
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            AppLog.Warning($"Auto-sharing from incoming handshake failed: {ex.Message}", ex);
+                                        }
+                                    });
+                                }
                             }
                         }
                     }
@@ -232,6 +261,8 @@ public partial class App : Application
                                 inviteRequest.ServerName,
                                 inviteRequest.FolderId,
                                 inviteRequest.OwnerEmail,
+                                inviteRequest.OwnerDeviceId,
+                                inviteRequest.OwnerUserName,
                                 inviteRequest.Participants,
                                 deviceId,
                                 localUserName,
@@ -268,6 +299,79 @@ public partial class App : Application
                         AppLog.Error($"[INVITE] Error handling incoming invite: {exception.Message}", exception);
                         return false;
                     }
+                },
+                async (serverDeletedNotification, cancellationToken) =>
+                {
+                    try
+                    {
+                        var servers = await worldHubServerService.GetAllAsync(cancellationToken);
+                        var matchingServer = servers.FirstOrDefault(s =>
+                            string.Equals(s.Name, serverDeletedNotification.ServerName, StringComparison.OrdinalIgnoreCase) ||
+                            (!string.IsNullOrWhiteSpace(s.HostDeviceId) &&
+                             string.Equals(s.HostDeviceId, serverDeletedNotification.HostDeviceId, StringComparison.OrdinalIgnoreCase)));
+
+                        if (matchingServer is not null)
+                        {
+                            AppLog.Log($"[SYNC] Host deleted WorldHub server '{matchingServer.Name}'. Cleaning up locally...");
+                            await worldHubServerService.DeleteWithCleanupAsync(
+                                matchingServer.Id,
+                                serverService,
+                                cancellationToken);
+
+                            Current?.Dispatcher.Invoke(() =>
+                            {
+                                if (Current?.MainWindow is MainWindow mw)
+                                {
+                                    mw.ReloadServerList();
+                                }
+
+                                var owner = Current?.MainWindow;
+                                DialogWindow.ShowInformation(
+                                    owner,
+                                    "WorldHub-сервер удалён",
+                                    $"Хост удалил WorldHub-сервер «{matchingServer.Name}».\nСервер был удалён из вашего списка.");
+                            });
+                        }
+                    }
+                    catch (Exception exception)
+                    {
+                        AppLog.Error($"[SYNC] Error handling remote server deletion: {exception.Message}", exception);
+                    }
+                },
+                async (participantLeftNotification, cancellationToken) =>
+                {
+                    try
+                    {
+                        var servers = await worldHubServerService.GetAllAsync(cancellationToken);
+                        var matchingServer = servers.FirstOrDefault(s =>
+                            string.Equals(s.Name, participantLeftNotification.ServerName, StringComparison.OrdinalIgnoreCase));
+
+                        if (matchingServer is not null)
+                        {
+                            var target = matchingServer.Participants.FirstOrDefault(p =>
+                                !string.IsNullOrWhiteSpace(p.DeviceId) &&
+                                string.Equals(p.DeviceId, participantLeftNotification.ParticipantDeviceId, StringComparison.OrdinalIgnoreCase));
+
+                            if (target is not null)
+                            {
+                                matchingServer.Participants.Remove(target);
+                                await worldHubServerService.UpdateAsync(matchingServer, cancellationToken);
+                                AppLog.Success($"[SYNC] Removed participant '{participantLeftNotification.ParticipantUserName}' from '{matchingServer.Name}' because they left.");
+
+                                Current?.Dispatcher.Invoke(() =>
+                                {
+                                    if (Current?.MainWindow is MainWindow mw)
+                                    {
+                                        mw.ReloadCurrentParticipantsIfMatches(matchingServer.Id);
+                                    }
+                                });
+                            }
+                        }
+                    }
+                    catch (Exception exception)
+                    {
+                        AppLog.Error($"[SYNC] Error handling remote participant left: {exception.Message}", exception);
+                    }
                 });
 
         _worldHubNetworkService.Start();
@@ -289,19 +393,6 @@ public partial class App : Application
         });
 
         // === Остальные сервисы ===
-
-        var serversPath =
-            Path.Combine(
-                dataPath,
-                "servers");
-
-        var serverRepository =
-            new JsonServerRepository(
-                serversPath);
-
-        var serverService =
-            new ServerService(
-                serverRepository);
 
         var serverDetector = new ServerDetector();
 

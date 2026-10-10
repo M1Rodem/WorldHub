@@ -435,4 +435,254 @@ public sealed class GoogleDriveClient
             return FolderAccessStatus.UnknownError;
         }
     }
+
+    /// <summary>
+    /// Находит или создаёт подпапку внутри родительской папки parentFolderId.
+    /// </summary>
+    public async Task<string> GetOrCreateSubfolderAsync(
+        string parentFolderId,
+        string subfolderName,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(parentFolderId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(subfolderName);
+
+        var credential = await _authService.AuthorizeAsync(cancellationToken);
+        var service = new DriveService(new BaseClientService.Initializer
+        {
+            HttpClientInitializer = credential,
+            ApplicationName = ApplicationName
+        });
+
+        // Ищем существующую папку
+        var listRequest = service.Files.List();
+        listRequest.Q = $"'{parentFolderId}' in parents and name = '{subfolderName}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false";
+        listRequest.Fields = "files(id, name)";
+        listRequest.SupportsAllDrives = true;
+        listRequest.IncludeItemsFromAllDrives = true;
+
+        var result = await listRequest.ExecuteAsync(cancellationToken);
+        var existing = result.Files?.FirstOrDefault();
+        if (existing is not null)
+        {
+            return existing.Id;
+        }
+
+        // Создаём новую
+        var metadata = new global::Google.Apis.Drive.v3.Data.File
+        {
+            Name = subfolderName,
+            MimeType = "application/vnd.google-apps.folder",
+            Parents = [parentFolderId]
+        };
+
+        var createRequest = service.Files.Create(metadata);
+        createRequest.Fields = "id, name";
+        createRequest.SupportsAllDrives = true;
+
+        var created = await createRequest.ExecuteAsync(cancellationToken);
+        AppLog.Log($"[DRIVE] Subfolder '{subfolderName}' created in '{parentFolderId}': {created.Id}");
+        return created.Id;
+    }
+
+    /// <summary>
+    /// Ищет файл по имени в указанной папке Google Drive.
+    /// Возвращает метаданные файла (Id, Name, Size, ModifiedTime) или null.
+    /// </summary>
+    public async Task<global::Google.Apis.Drive.v3.Data.File?> FindFileInFolderAsync(
+        string folderId,
+        string fileName,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(folderId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+
+        var credential = await _authService.AuthorizeAsync(cancellationToken);
+        var service = new DriveService(new BaseClientService.Initializer
+        {
+            HttpClientInitializer = credential,
+            ApplicationName = ApplicationName
+        });
+
+        var listRequest = service.Files.List();
+        listRequest.Q = $"'{folderId}' in parents and name = '{fileName}' and trashed = false";
+        listRequest.Fields = "files(id, name, size, modifiedTime)";
+        listRequest.SupportsAllDrives = true;
+        listRequest.IncludeItemsFromAllDrives = true;
+
+        var result = await listRequest.ExecuteAsync(cancellationToken);
+        return result.Files?.FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Загружает файл в указанную папку Google Drive с отслеживанием прогресса.
+    /// Если файл с таким именем уже существует, заменяет его или обновляет.
+    /// </summary>
+    public async Task<string> UploadFileAsync(
+        string folderId,
+        string localFilePath,
+        string targetFileName,
+        string contentType = "application/octet-stream",
+        IProgress<double>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(folderId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(localFilePath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(targetFileName);
+
+        if (!File.Exists(localFilePath))
+        {
+            throw new FileNotFoundException("Файл для загрузки не найден.", localFilePath);
+        }
+
+        var credential = await _authService.AuthorizeAsync(cancellationToken);
+        var service = new DriveService(new BaseClientService.Initializer
+        {
+            HttpClientInitializer = credential,
+            ApplicationName = ApplicationName
+        });
+
+        // Проверяем, есть ли уже файл с таким именем в папке
+        var existing = await FindFileInFolderAsync(folderId, targetFileName, cancellationToken);
+
+        await using var fileStream = new FileStream(localFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        var totalLength = fileStream.Length;
+
+        if (existing is not null)
+        {
+            // Обновляем существующий
+            var updateMetadata = new global::Google.Apis.Drive.v3.Data.File
+            {
+                Name = targetFileName
+            };
+
+            var updateRequest = service.Files.Update(updateMetadata, existing.Id, fileStream, contentType);
+            updateRequest.Fields = "id, name, size";
+            updateRequest.SupportsAllDrives = true;
+
+            if (progress is not null)
+            {
+                updateRequest.ProgressChanged += uploadProgress =>
+                {
+                    if (totalLength > 0 && uploadProgress.BytesSent > 0)
+                    {
+                        var pct = Math.Min(100.0, (double)uploadProgress.BytesSent / totalLength * 100.0);
+                        progress.Report(pct);
+                    }
+                };
+            }
+
+            var uploadResult = await updateRequest.UploadAsync(cancellationToken);
+            if (uploadResult.Status == global::Google.Apis.Upload.UploadStatus.Failed)
+            {
+                throw uploadResult.Exception ?? new InvalidOperationException("Ошибка обновления файла в Google Drive.");
+            }
+
+            AppLog.Success($"[DRIVE] File updated: {targetFileName} ({updateRequest.ResponseBody?.Id ?? existing.Id})");
+            return updateRequest.ResponseBody?.Id ?? existing.Id;
+        }
+        else
+        {
+            // Создаём новый
+            var metadata = new global::Google.Apis.Drive.v3.Data.File
+            {
+                Name = targetFileName,
+                Parents = [folderId]
+            };
+
+            var createRequest = service.Files.Create(metadata, fileStream, contentType);
+            createRequest.Fields = "id, name, size";
+            createRequest.SupportsAllDrives = true;
+
+            if (progress is not null)
+            {
+                createRequest.ProgressChanged += uploadProgress =>
+                {
+                    if (totalLength > 0 && uploadProgress.BytesSent > 0)
+                    {
+                        var pct = Math.Min(100.0, (double)uploadProgress.BytesSent / totalLength * 100.0);
+                        progress.Report(pct);
+                    }
+                };
+            }
+
+            var uploadResult = await createRequest.UploadAsync(cancellationToken);
+            if (uploadResult.Status == global::Google.Apis.Upload.UploadStatus.Failed)
+            {
+                throw uploadResult.Exception ?? new InvalidOperationException("Ошибка загрузки файла в Google Drive.");
+            }
+
+            AppLog.Success($"[DRIVE] File uploaded: {targetFileName} ({createRequest.ResponseBody?.Id})");
+            return createRequest.ResponseBody?.Id ?? string.Empty;
+        }
+    }
+
+    /// <summary>
+    /// Скачивает файл из Google Drive в локальный путь с отслеживанием прогресса.
+    /// </summary>
+    public async Task DownloadFileAsync(
+        string fileId,
+        string destinationFilePath,
+        long? expectedBytes = null,
+        IProgress<double>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(destinationFilePath);
+
+        var credential = await _authService.AuthorizeAsync(cancellationToken);
+        var service = new DriveService(new BaseClientService.Initializer
+        {
+            HttpClientInitializer = credential,
+            ApplicationName = ApplicationName
+        });
+
+        // Если размер не передан, запрашиваем метаданные файла
+        if (expectedBytes is null or <= 0)
+        {
+            try
+            {
+                var metaRequest = service.Files.Get(fileId);
+                metaRequest.Fields = "size";
+                metaRequest.SupportsAllDrives = true;
+                var meta = await metaRequest.ExecuteAsync(cancellationToken);
+                expectedBytes = meta.Size;
+            }
+            catch
+            {
+                // Не критично, если размер не получен
+            }
+        }
+
+        var dir = Path.GetDirectoryName(destinationFilePath);
+        if (!string.IsNullOrWhiteSpace(dir))
+        {
+            Directory.CreateDirectory(dir);
+        }
+
+        var getRequest = service.Files.Get(fileId);
+        getRequest.SupportsAllDrives = true;
+
+        await using var outputStream = new FileStream(destinationFilePath, FileMode.Create, FileAccess.Write, FileShare.None);
+
+        if (progress is not null && expectedBytes > 0)
+        {
+            getRequest.MediaDownloader.ProgressChanged += downloadProgress =>
+            {
+                if (downloadProgress.BytesDownloaded > 0 && expectedBytes.Value > 0)
+                {
+                    var pct = Math.Min(100.0, (double)downloadProgress.BytesDownloaded / expectedBytes.Value * 100.0);
+                    progress.Report(pct);
+                }
+            };
+        }
+
+        var result = await getRequest.DownloadAsync(outputStream, cancellationToken);
+        if (result.Status == global::Google.Apis.Download.DownloadStatus.Failed)
+        {
+            throw result.Exception ?? new InvalidOperationException("Ошибка скачивания файла из Google Drive.");
+        }
+
+        AppLog.Success($"[DRIVE] File downloaded: {fileId} -> {destinationFilePath}");
+    }
 }

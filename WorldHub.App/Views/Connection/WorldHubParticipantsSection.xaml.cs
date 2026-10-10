@@ -94,13 +94,28 @@ public partial class WorldHubParticipantsSection : UserControl
             }
         }
 
+        // Проверка: является ли текущий локальный пользователь хостом?
+        // Хост определяется по первичному участнику (server.Participants.FirstOrDefault())
+        // либо по server.HostDeviceId для обратной совместимости.
+        var isCurrentLocalUserHost = false;
+        var firstParticipant = server.Participants.FirstOrDefault();
+        if (firstParticipant is not null && !string.IsNullOrWhiteSpace(firstParticipant.DeviceId))
+        {
+            isCurrentLocalUserHost = string.Equals(firstParticipant.DeviceId, _localDeviceId, StringComparison.OrdinalIgnoreCase);
+        }
+        else if (!string.IsNullOrWhiteSpace(server.HostDeviceId))
+        {
+            isCurrentLocalUserHost = string.Equals(server.HostDeviceId, _localDeviceId, StringComparison.OrdinalIgnoreCase);
+        }
+
         Participants.Clear();
 
         foreach (var participant in server.Participants)
         {
             Participants.Add(new WorldHubParticipantViewModel(
                 participant,
-                _localDeviceId));
+                _localDeviceId,
+                isCurrentLocalUserHost));
         }
 
         UpdateParticipantsUi();
@@ -360,6 +375,7 @@ public partial class WorldHubParticipantsSection : UserControl
     {
         if (_selectedServerId is null ||
             _checkService is null ||
+            _worldHubServerService is null ||
             sender is not Button button ||
             button.Tag is not WorldHubParticipantViewModel vm)
         {
@@ -391,10 +407,41 @@ public partial class WorldHubParticipantsSection : UserControl
 
         try
         {
+            var server = await _worldHubServerService.GetByIdAsync(serverId);
+
             await _checkService.RemoveParticipantAsync(
                 serverId,
                 vm.Id,
                 CancellationToken.None);
+
+            if (_networkService is not null && server is not null)
+            {
+                var notification = new WorldHub.Network.Protocol.ParticipantLeftNotification(
+                    server.Name,
+                    vm.Participant.DeviceId ?? "",
+                    vm.DisplayName);
+
+                _ = Task.Run(async () =>
+                {
+                    // Оповещаем удаляемого участника и остальных
+                    var targets = server.Participants
+                        .Where(p => !string.Equals(p.DeviceId, _localDeviceId, StringComparison.OrdinalIgnoreCase) &&
+                                    !string.IsNullOrWhiteSpace(p.IpAddress))
+                        .ToList();
+
+                    foreach (var target in targets)
+                    {
+                        try
+                        {
+                            await _networkService.NotifyParticipantLeftAsync(target.IpAddress, notification);
+                        }
+                        catch (Exception ex)
+                        {
+                            AppLog.Warning($"Failed to notify {target.IpAddress} that participant left: {ex.Message}");
+                        }
+                    }
+                });
+            }
 
             if (_selectedServerId == serverId)
             {

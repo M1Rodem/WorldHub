@@ -21,6 +21,8 @@ public partial class ConnectionView : UserControl
     private readonly RadminVpnDetector _radminVpnDetector;
     private readonly GoogleDriveStatusCache _googleDriveStatusCache;
     private readonly LocalParticipantProvider _localParticipantProvider;
+    private readonly WorldHubNetworkService _networkService;
+    private readonly string _localDeviceId;
     private readonly DispatcherTimer _refreshTimer;
 
     private CancellationTokenSource? _pageCts;
@@ -55,10 +57,12 @@ public partial class ConnectionView : UserControl
         ArgumentNullException.ThrowIfNull(appSettingsService);
 
         _worldHubServerService = worldHubServerService;
+        _networkService = networkService;
         _serverService = serverService;
         _radminVpnDetector = radminVpnDetector;
         _googleDriveStatusCache = googleDriveStatusCache;
         _localParticipantProvider = localParticipantProvider;
+        _localDeviceId = localDeviceId;
         _appSettingsService = appSettingsService;
 
         _checkService = new WorldHubParticipantCheckService(
@@ -67,7 +71,18 @@ public partial class ConnectionView : UserControl
             localDeviceId,
             () => appSettingsService.GetUserName(),
             null,
-            () => googleDriveStatusCache.GetStatusString());
+            () => googleDriveStatusCache.GetStatusString(),
+            async cancellationToken =>
+            {
+                try
+                {
+                    return await googleDriveClient.GetAccountEmailAsync(cancellationToken);
+                }
+                catch
+                {
+                    return null;
+                }
+            });
 
         InitializeComponent();
 
@@ -90,6 +105,16 @@ public partial class ConnectionView : UserControl
 
         ParticipantsSection.ParticipantCheckCompleted += async (_, _) =>
         {
+            if (_selectedServerId.HasValue)
+            {
+                var freshServer = await _worldHubServerService.GetByIdAsync(_selectedServerId.Value);
+                if (freshServer is not null)
+                {
+                    _currentServer = freshServer;
+                    FolderSection.SetServer(_currentServer);
+                }
+            }
+
             await FolderSection.RefreshFolderAccessAsync();
             _ = Task.Run(async () =>
             {
@@ -287,6 +312,19 @@ public partial class ConnectionView : UserControl
         }
     }
 
+    public async Task ReloadServerListAsync(Guid? selectServerId = null)
+    {
+        await LoadWorldHubServersAsync(selectServerId);
+    }
+
+    public async Task ReloadParticipantsIfMatchesAsync(Guid serverId)
+    {
+        if (_selectedServerId == serverId)
+        {
+            await ParticipantsSection.ReloadParticipantsAsync(serverId);
+        }
+    }
+
     private async Task LoadWorldHubServersAsync(Guid? selectedId = null)
     {
         try
@@ -356,13 +394,33 @@ public partial class ConnectionView : UserControl
         _selectedServerId = server.Id;
         _currentServer = server;
 
+        // Определяем, является ли локальный пользователь хостом сервера
+        var isHost = false;
+        var firstParticipant = server.Participants.FirstOrDefault();
+        if (firstParticipant is not null && !string.IsNullOrWhiteSpace(firstParticipant.DeviceId))
+        {
+            isHost = string.Equals(firstParticipant.DeviceId, _localDeviceId, StringComparison.OrdinalIgnoreCase);
+        }
+        else if (!string.IsNullOrWhiteSpace(server.HostDeviceId))
+        {
+            isHost = string.Equals(server.HostDeviceId, _localDeviceId, StringComparison.OrdinalIgnoreCase);
+        }
+        else
+        {
+            isHost = true;
+        }
+
+        DeleteWorldHubServerButton.Content = isHost ? "Удалить" : "Покинуть";
         DeleteWorldHubServerButton.IsEnabled = true;
+
+        AddParticipantButton.Visibility = isHost ? Visibility.Visible : Visibility.Collapsed;
 
         SelectedServerNameText.Text = server.Name;
         EmptyStatePanel.Visibility = Visibility.Collapsed;
         SelectedServerScrollViewer.Visibility = Visibility.Visible;
         SelectedServerPanel.Visibility = Visibility.Visible;
 
+        FolderSection.SetHostStatus(isHost);
         FolderSection.SetServer(server);
         ParticipantsSection.SetServer(server.Id, server.Name);
         await ParticipantsSection.ReloadParticipantsAsync(server.Id);
@@ -445,60 +503,207 @@ public partial class ConnectionView : UserControl
 
         var serverName = _currentServer.Name;
 
-        var confirmed = DialogWindow.ShowConfirmation(
-            owner,
-            "Удаление WorldHub-сервера",
-            $"Удалить WorldHub-сервер «{serverName}»?\n\n" +
-            "• Удалятся связи с Minecraft-серверами.\n" +
-            "• Отвяжется общая папка Google Drive. " +
-            "Сама папка в Drive останется — удалите её вручную, если нужно.\n" +
-            "• У друзей сервер останется в их локальных данных, " +
-            "пока они не удалят его вручную.\n\n" +
-            "Это действие нельзя отменить.");
-
-        if (!confirmed)
+        // Хост определяется по первичному участнику (server.Participants.FirstOrDefault())
+        // либо по server.HostDeviceId для совместимости.
+        var isHost = false;
+        var firstParticipant = _currentServer.Participants.FirstOrDefault();
+        if (firstParticipant is not null && !string.IsNullOrWhiteSpace(firstParticipant.DeviceId))
         {
-            return;
+            isHost = string.Equals(firstParticipant.DeviceId, _localDeviceId, StringComparison.OrdinalIgnoreCase);
+        }
+        else if (!string.IsNullOrWhiteSpace(_currentServer.HostDeviceId))
+        {
+            isHost = string.Equals(_currentServer.HostDeviceId, _localDeviceId, StringComparison.OrdinalIgnoreCase);
+        }
+        else
+        {
+            // Если участников нет, считаем локальным
+            isHost = true;
         }
 
-        DeleteWorldHubServerButton.IsEnabled = false;
-
-        try
+        if (isHost)
         {
-            var token = _pageCts?.Token ?? CancellationToken.None;
-
-            var serverId = _selectedServerId.Value;
-
-            await _worldHubServerService.DeleteWithCleanupAsync(
-                serverId,
-                _serverService,
-                token);
-
-            _checkService.RemoveGate(serverId);
-
-            _selectedServerId = null;
-            _currentServer = null;
-            ParticipantsSection.Clear();
-            FolderSection.SetServer(null);
-
-            await LoadWorldHubServersAsync();
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (Exception exception)
-        {
-            MessageBox.Show(
+            // === ВЕТКА 1: СОЗДАТЕЛЬ (ХОСТ) УДАЛЯЕТ СЕРВЕР ===
+            var confirmed = DialogWindow.ShowConfirmation(
                 owner,
-                $"Не удалось удалить WorldHub-сервер.\n\n{exception.Message}",
-                "WorldHub",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+                "Удаление WorldHub-сервера",
+                $"Вы являетесь хостом сервера «{serverName}».\n\n" +
+                "Удалить этот WorldHub-сервер?\n" +
+                "• Сервер будет автоматически удалён у всех подключённых друзей.\n" +
+                "• Удалятся связи с вашими локальными Minecraft-серверами.\n" +
+                "• Отвяжется общая папка Google Drive (файлы в Drive останутся).\n\n" +
+                "Это действие нельзя отменить.");
+
+            if (!confirmed)
+            {
+                return;
+            }
+
+            DeleteWorldHubServerButton.IsEnabled = false;
+
+            try
+            {
+                var token = _pageCts?.Token ?? CancellationToken.None;
+                var serverId = _selectedServerId.Value;
+
+                // Оповещаем всех остальных участников по сети об удалении сервера хостом
+                var otherParticipants = _currentServer.Participants
+                    .Where(p => !string.Equals(p.DeviceId, _localDeviceId, StringComparison.OrdinalIgnoreCase) &&
+                                !string.IsNullOrWhiteSpace(p.IpAddress))
+                    .ToList();
+
+                if (otherParticipants.Count > 0 && _networkService is not null)
+                {
+                    var notification = new WorldHub.Network.Protocol.ServerDeletedNotification(
+                        _currentServer.Name,
+                        _localDeviceId);
+
+                    _ = Task.Run(async () =>
+                    {
+                        foreach (var participant in otherParticipants)
+                        {
+                            try
+                            {
+                                await _networkService.NotifyServerDeletedAsync(
+                                    participant.IpAddress,
+                                    notification);
+                            }
+                            catch (Exception ex)
+                            {
+                                AppLog.Warning($"Failed to notify {participant.IpAddress} about server deletion: {ex.Message}");
+                            }
+                        }
+                    });
+                }
+
+                await _worldHubServerService.DeleteWithCleanupAsync(
+                    serverId,
+                    _serverService,
+                    token);
+
+                _checkService.RemoveGate(serverId);
+
+                _selectedServerId = null;
+                _currentServer = null;
+                ParticipantsSection.Clear();
+                FolderSection.SetServer(null);
+
+                await LoadWorldHubServersAsync();
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception exception)
+            {
+                MessageBox.Show(
+                    owner,
+                    $"Не удалось удалить WorldHub-сервер.\n\n{exception.Message}",
+                    "WorldHub",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+            finally
+            {
+                DeleteWorldHubServerButton.IsEnabled =
+                    _selectedServerId is not null;
+            }
         }
-        finally
+        else
         {
-            DeleteWorldHubServerButton.IsEnabled =
-                _selectedServerId is not null;
+            // === ВЕТКА 2: НЕ СОЗДАТЕЛЬ ПОКИДАЕТ СЕРВЕР (УДАЛЯЕТ СВОЙ АККАУНТ ИЗ СЕРВЕРА) ===
+            var hostDisplay = firstParticipant?.UserName ?? _currentServer.HostUserName ?? "Хост";
+
+            var confirmed = DialogWindow.ShowConfirmation(
+                owner,
+                "Выход из WorldHub-сервера",
+                $"Вы не являетесь хостом сервера «{serverName}» (хост: {hostDisplay}).\n\n" +
+                "Покинуть этот WorldHub-сервер?\n" +
+                "• Сервер будет удалён из вашего приложения.\n" +
+                "• Вы будете удалены из списка участников на сервере у всех друзей.\n" +
+                "• Связи с вашими локальными Minecraft-серверами будут сброшены.\n\n" +
+                "Продолжить?");
+
+            if (!confirmed)
+            {
+                return;
+            }
+
+            DeleteWorldHubServerButton.IsEnabled = false;
+
+            try
+            {
+                var token = _pageCts?.Token ?? CancellationToken.None;
+                var serverId = _selectedServerId.Value;
+
+                // Оповещаем всех остальных участников (включая хоста), что мы покинули сервер
+                var otherParticipants = _currentServer.Participants
+                    .Where(p => !string.Equals(p.DeviceId, _localDeviceId, StringComparison.OrdinalIgnoreCase) &&
+                                !string.IsNullOrWhiteSpace(p.IpAddress))
+                    .ToList();
+
+                var currentUserName = _appSettingsService.GetUserName();
+                if (string.IsNullOrWhiteSpace(currentUserName))
+                {
+                    currentUserName = Environment.UserName;
+                }
+
+                if (otherParticipants.Count > 0 && _networkService is not null)
+                {
+                    var notification = new WorldHub.Network.Protocol.ParticipantLeftNotification(
+                        _currentServer.Name,
+                        _localDeviceId,
+                        currentUserName);
+
+                    _ = Task.Run(async () =>
+                    {
+                        foreach (var participant in otherParticipants)
+                        {
+                            try
+                            {
+                                await _networkService.NotifyParticipantLeftAsync(
+                                    participant.IpAddress,
+                                    notification);
+                            }
+                            catch (Exception ex)
+                            {
+                                AppLog.Warning($"Failed to notify {participant.IpAddress} that we left: {ex.Message}");
+                            }
+                        }
+                    });
+                }
+
+                // Удаляем локально у себя этот сервер и отвязываем локальные Minecraft-серверы
+                await _worldHubServerService.DeleteWithCleanupAsync(
+                    serverId,
+                    _serverService,
+                    token);
+
+                _checkService.RemoveGate(serverId);
+
+                _selectedServerId = null;
+                _currentServer = null;
+                ParticipantsSection.Clear();
+                FolderSection.SetServer(null);
+
+                await LoadWorldHubServersAsync();
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception exception)
+            {
+                MessageBox.Show(
+                    owner,
+                    $"Не удалось покинуть WorldHub-сервер.\n\n{exception.Message}",
+                    "WorldHub",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+            finally
+            {
+                DeleteWorldHubServerButton.IsEnabled =
+                    _selectedServerId is not null;
+            }
         }
     }
 }

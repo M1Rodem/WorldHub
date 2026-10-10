@@ -117,6 +117,24 @@ public sealed class ServerService
             cancellationToken);
     }
 
+    public async Task DeleteAsync(
+        Guid serverId,
+        CancellationToken cancellationToken = default)
+    {
+        if (serverId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "Server ID cannot be empty.",
+                nameof(serverId));
+        }
+
+        await _serverRepository.DeleteAsync(
+            serverId,
+            cancellationToken);
+
+        AppLog.Log($"[SERVER] Deleted server {serverId} from application.");
+    }
+
     private static string? NormalizeOptionalValue(
         string? value)
     {
